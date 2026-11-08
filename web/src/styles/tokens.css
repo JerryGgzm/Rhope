@@ -1,0 +1,84 @@
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #080d13;
+  --surface-read: #101821;
+  --surface-glass: rgba(22, 34, 46, 0.72);
+  --surface-glass-solid: #16222e;
+  --surface-raised: #182532;
+  --surface-sunken: #0c131b;
+  --border: rgba(210, 230, 245, 0.1);
+  --border-strong: rgba(210, 230, 245, 0.18);
+
+  /* Text */
+  --text: #eaf0f6;
+  --text-2: #a7b5c6;
+  --text-3: #7d8b9c;
+
+  /* Accents */
+  --accent: #7dddd3;
+  --accent-ink: #062320;
+  --accent-soft: rgba(125, 221, 211, 0.12);
+  --accent-glow: rgba(125, 221, 211, 0.22);
+  --accent-2: #91acdf;
+  --accent-2-soft: rgba(145, 172, 223, 0.12);
+
+  /* Semantics (always paired with text or an icon) */
+  --pos: #70d6a6;
+  --pos-soft: rgba(112, 214, 166, 0.12);
+  --neg: #f18b96;
+  --neg-soft: rgba(241, 139, 150, 0.12);
+  --warn: #e8bd75;
+  --warn-soft: rgba(232, 189, 117, 0.12);
+
+  /* Shape */
+  --r-input: 10px;
+  --r-panel: 16px;
+  --r-drawer: 20px;
+
+  /* Spacing */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* Type */
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    "Noto Sans SC", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --fs-title: 30px;
+  --fs-h2: 20px;
+  --fs-h3: 16px;
+  --fs-body: 15px;
+  --fs-control: 14px;
+  --fs-aux: 12.5px;
+
+  /* Motion */
+  --t-hover: 140ms;
+  --t-panel: 210ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Layout */
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 68px;
+  --topbar-h: 64px;
+  --params-w: 320px;
+  --blur: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-hover: 0ms;
+    --t-panel: 0ms;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --surface-glass: var(--surface-glass-solid);
+  }
+}
