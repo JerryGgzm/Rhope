@@ -30,7 +30,7 @@ function Connection() {
       ? t("未连接", "Disconnected")
       : t("连接中", "Connecting");
   const title = health.isSuccess
-    ? `TradingAgents ${health.data.version} · ${t("存储", "storage")} ${health.data.storage === "ok" ? t("正常", "OK") : t("不可用", "unavailable")}`
+    ? `Rhope ${health.data.version} · ${t("存储", "storage")} ${health.data.storage === "ok" ? t("正常", "OK") : t("不可用", "unavailable")}`
     : health.isError
       ? t("无法连接本地服务：运行 python -m tradingagents.web", "Cannot reach the local service: run python -m tradingagents.web")
       : undefined;
@@ -74,8 +74,8 @@ export function Shell() {
     <div className="app">
       <header className="header">
         <div className="header-inner">
-          <Link to="/analysis" className="wordmark" aria-label={t("TradingAgents 首页", "TradingAgents home")}>
-            <span className="serif">Trading</span>Agents
+          <Link to="/analysis" className="wordmark" aria-label={t("Rhope 首页", "Rhope home")}>
+            Rhope
           </Link>
           <nav className="nav" ref={navRef} aria-label={t("主导航", "Main navigation")}>
             {NAV.map((n) => (

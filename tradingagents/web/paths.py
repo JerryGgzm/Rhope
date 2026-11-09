@@ -6,14 +6,16 @@ import os
 import tempfile
 from pathlib import Path
 
+from tradingagents.default_config import _TRADINGAGENTS_HOME
+
 
 def web_home() -> Path:
     """The workbench's private directory: index database, settings, credentials.
 
     ``TRADINGAGENTS_WEB_HOME`` moves it (tests point it at a temporary directory).
     """
-    configured = os.environ.get("TRADINGAGENTS_WEB_HOME")
-    home = Path(configured) if configured else Path.home() / ".tradingagents" / "web"
+    configured = os.environ.get("TRADINGAGENTS_WEB_HOME", "").strip()
+    home = Path(configured) if configured else Path(_TRADINGAGENTS_HOME) / "web"
     home.mkdir(parents=True, exist_ok=True)
     os.chmod(home, 0o700)
     return home

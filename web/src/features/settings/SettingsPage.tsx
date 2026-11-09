@@ -404,7 +404,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
           {group === "about" ? (
             <section className="stack">
               <dl className="kv">
-                <dt>TradingAgents</dt>
+                <dt>Rhope</dt>
                 <dd className="mono">{health.data?.version ?? caps.data?.version ?? "—"}</dd>
                 <dt>{t("本地存储", "Local storage")}</dt>
                 <dd>{health.data?.storage === "ok" ? t("正常", "OK") : (health.data?.storage ?? "—")}</dd>

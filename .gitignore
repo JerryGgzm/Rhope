@@ -226,3 +226,7 @@ reports/
 web/node_modules/
 tradingagents/web/static/
 !web/src/lib/
+
+# Local data: API keys, reports, cache, decision log. Never push.
+/Rhope/
+.tradingagents/

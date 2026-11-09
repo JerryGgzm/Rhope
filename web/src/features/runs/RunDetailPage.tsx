@@ -808,7 +808,7 @@ function InputsTab({ run }: { run: RunDetail }) {
             ) : null}
             <dt>{t("设置版本", "Settings")}</dt>
             <dd>revision {run.settings_revision ?? 0}</dd>
-            <dt>TradingAgents</dt>
+            <dt>Rhope</dt>
             <dd className="mono">{String(c.version)}</dd>
             {run.stats && (
               <>

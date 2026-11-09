@@ -1,6 +1,25 @@
 import os
+from pathlib import Path
 
-_TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
+
+def _data_home() -> str:
+    """Where keys, reports, cache and the decision log live.
+
+    A checkout keeps them in its ``Rhope`` directory, which git ignores. An
+    installed copy, with no project around it, keeps the old home directory.
+    ``TRADINGAGENTS_HOME`` overrides both.
+    """
+    override = os.environ.get("TRADINGAGENTS_HOME", "").strip()
+    if override:
+        return override
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").is_file() and (parent / "tradingagents" / "__init__.py").is_file():
+            return str(parent / "Rhope")
+    return str(Path.home() / ".tradingagents")
+
+
+_TRADINGAGENTS_HOME = _data_home()
 
 # Single source of truth for env-var → config-key overrides. To expose
 # a new config key for environment-based override, add a row here — no

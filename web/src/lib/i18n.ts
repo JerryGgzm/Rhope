@@ -16,7 +16,7 @@ function initial(): Lang {
 
 function applyToDocument(l: Lang) {
   document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
-  document.title = l === "zh" ? "TradingAgents 研究工作台" : "TradingAgents Research Workbench";
+  document.title = l === "zh" ? "Rhope 研究工作台" : "Rhope Research Workbench";
 }
 
 let lang: Lang = initial();

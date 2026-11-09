@@ -6,6 +6,7 @@ import { App } from "./app/App";
 import { ApiError } from "./lib/api/client";
 import { keys } from "./lib/api/hooks";
 import { getLang, subscribeLang } from "./lib/i18n";
+import "@fontsource-variable/fraunces/wght.css";
 import "@fontsource-variable/inter/wght.css";
 import "@fontsource/instrument-serif/400.css";
 import "./styles/tokens.css";

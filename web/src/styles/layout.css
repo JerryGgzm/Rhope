@@ -28,19 +28,14 @@
 }
 
 .wordmark {
-  display: flex;
-  align-items: baseline;
-  gap: 1px;
-  font-size: 15px;
+  font-family: var(--font-wordmark);
+  font-size: 22px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  font-variation-settings: "wght" 600, "SOFT" 20, "opsz" 36;
+  letter-spacing: -0.03em;
+  line-height: 1;
   white-space: nowrap;
   border-radius: var(--r-sm);
-}
-
-.wordmark .serif {
-  font-size: 19px;
-  font-weight: 400;
 }
 
 .nav {

@@ -120,11 +120,11 @@ CONFIG_FIELDS: list[Field] = [
           "已结算的决策最多留多少条，留空就不删。还没结算的永不删除。例如 500。",
           nullable=True, minimum=1),
     Field("results_dir", "storage", "结果目录", "path",
-          "报告和运行结果存到哪里。只影响新运行，不搬移旧文件。例如 ~/.tradingagents/logs。"),
+          "报告和运行结果存到哪里。只影响新运行，不搬移旧文件。例如 Rhope/logs。"),
     Field("data_cache_dir", "storage", "数据缓存目录", "path",
-          "行情和指标的本地缓存放在哪里。例如 ~/.tradingagents/cache。"),
+          "行情和指标的本地缓存放在哪里。例如 Rhope/cache。"),
     Field("memory_log_path", "storage", "决策日志文件", "path",
-          "复盘读取的决策日志文件。例如 ~/.tradingagents/memory/trading_memory.md。"),
+          "复盘读取的决策日志文件。例如 Rhope/memory/trading_memory.md。"),
 ]
 
 ENV_FIELDS: list[Field] = [
@@ -204,9 +204,9 @@ EN: dict[str, tuple[str, str]] = {
     "benchmark_ticker": ("Fixed benchmark", "Measure every symbol against this ticker. Leave empty to pick one from the exchange suffix. e.g. SPY."),
     "benchmark_map": ("Benchmark map", "Which benchmark each exchange suffix uses. An empty suffix is the US default. e.g. .HK → ^HSI."),
     "memory_log_max_entries": ("Decision log entries kept", "Most settled decisions to keep. Leave empty to keep them all. Pending entries are never removed. e.g. 500."),
-    "results_dir": ("Results directory", "Where reports and run output are saved. Affects new runs only; old files stay put. e.g. ~/.tradingagents/logs."),
-    "data_cache_dir": ("Data cache directory", "Where the local cache of prices and indicators lives. e.g. ~/.tradingagents/cache."),
-    "memory_log_path": ("Decision log file", "The decision log that review reads. e.g. ~/.tradingagents/memory/trading_memory.md."),
+    "results_dir": ("Results directory", "Where reports and run output are saved. Affects new runs only; old files stay put. e.g. Rhope/logs."),
+    "data_cache_dir": ("Data cache directory", "Where the local cache of prices and indicators lives. e.g. Rhope/cache."),
+    "memory_log_path": ("Decision log file", "The decision log that review reads. e.g. Rhope/memory/trading_memory.md."),
     "SEC_EDGAR_USER_AGENT": ("SEC EDGAR User-Agent", "Contact details SEC requires on every filing request. e.g. Jane Doe jane@example.com."),
     "TYPESAFE_DEFAULT_MODEL": ("Typesafe model", "Model TypeSafe uses to screen social posts. Leave empty for jev-latest. e.g. jev-latest."),
     "TYPESAFE_BASE_URL": ("Typesafe endpoint", "TypeSafe API address. Leave empty for https://api.typesafe.ai."),

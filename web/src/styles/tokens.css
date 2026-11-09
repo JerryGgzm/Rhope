@@ -46,6 +46,7 @@
   --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", system-ui, sans-serif;
   --font-serif: "Instrument Serif", "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+  --font-wordmark: "Fraunces Variable", "Fraunces", "Iowan Old Style", Palatino, "Songti SC", serif;
   --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
   --fs-display: 44px;
