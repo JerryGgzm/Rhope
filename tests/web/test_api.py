@@ -114,6 +114,13 @@ def test_labels_and_errors_follow_the_requested_language(client):
 
     assert label("en-US,en;q=0.9") == "Bull/bear rounds"
     assert label("zh-CN") == "多空研究轮数"
+    en = client.get("/api/v1/settings", headers={"Accept-Language": "en"}).json()
+    zh = client.get("/api/v1/settings", headers={"Accept-Language": "zh-CN"}).json()
+    for doc in (en, zh):
+        blank = [f["key"] for f in doc["fields"] if not str(f["description"]).strip()]
+        assert blank == []
+    quick = next(f for f in en["fields"] if f["key"] == "quick_think_backend_url")
+    assert "quick tier" in quick["description"] and "11434" in quick["description"]
     stale = client.patch("/api/v1/settings", json={"base_revision": 9, "config": {}},
                          headers={"Accept-Language": "en"})
     assert stale.status_code == 409 and "another tab" in stale.json()["error"]["message"]
