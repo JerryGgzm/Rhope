@@ -58,7 +58,8 @@ class ResolveInstrumentIdentityTests(unittest.TestCase):
     def test_a_failed_lookup_is_asked_again(self):
         # A long process (a backtest) must not run every later cell without an
         # identity because one request failed.
-        with patch("tradingagents.dataflows.vendors.yahoo.market.yf.Ticker") as mock:
+        with patch("tradingagents.dataflows.vendors.yahoo.market.yf.Ticker") as mock, \
+                patch("tradingagents.dataflows.vendors.yahoo.common.time.sleep"):
             type(mock.return_value).info = property(lambda self: (_ for _ in ()).throw(TimeoutError()))
             self.assertEqual(resolve_instrument_identity("TOTDY"), {})
             type(mock.return_value).info = {"longName": "TOTO LTD."}

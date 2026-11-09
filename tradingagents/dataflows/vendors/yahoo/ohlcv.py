@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 
 import pandas as pd
 import yfinance as yf
@@ -22,6 +23,14 @@ MAX_OHLCV_STALE_DAYS = 10
 # up today's close soon after it publishes, long enough that a day with no bar
 # at all (weekend, holiday) cannot trigger a download on every call.
 OHLCV_CACHE_TTL_SECONDS = 900
+
+_download_locks: dict[str, threading.Lock] = {}
+_download_locks_guard = threading.Lock()
+
+
+def _download_lock(data_file: str) -> threading.Lock:
+    with _download_locks_guard:
+        return _download_locks.setdefault(data_file, threading.Lock())
 
 
 def _ensure_date_column(data: pd.DataFrame) -> pd.DataFrame:
@@ -193,36 +202,39 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
         f"{safe_symbol}-YFin-data.csv",
     )
 
-    # A cached file may be empty if a prior fetch failed (unknown symbol,
-    # transient rate limit). Treat an empty/columnless cache as a miss and
-    # re-fetch rather than serving the poisoned file forever.
-    data = None
-    if os.path.exists(data_file):
-        cached = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
-        if (
-            not cached.empty
-            and "Close" in cached.columns
-            and _cache_is_fresh(data_file, as_of_dt, now)
-        ):
-            data = cached
+    # An analyst asks for several indicators at once, each in its own thread;
+    # one download per symbol serves them all, the rest read the cache it writes.
+    with _download_lock(data_file):
+        # A cached file may be empty if a prior fetch failed (unknown symbol,
+        # transient rate limit). Treat an empty/columnless cache as a miss and
+        # re-fetch rather than serving the poisoned file forever.
+        data = None
+        if os.path.exists(data_file):
+            cached = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
+            if (
+                not cached.empty
+                and "Close" in cached.columns
+                and _cache_is_fresh(data_file, as_of_dt, now)
+            ):
+                data = cached
 
-    if data is None:
-        # yf.download catches every error, a rate limit included, and returns
-        # an empty frame. Ticker.history raises the rate limit, so it is retried.
-        downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
-            start=start_str,
-            end=end_str,
-            auto_adjust=True,
-            actions=False,
-        ))
-        if downloaded is None:
-            raise_for_empty(symbol, canonical, "price rows")
-        downloaded = _ensure_date_column(downloaded.reset_index())
-        # Only cache real data — never persist an empty frame.
-        if downloaded.empty or "Close" not in downloaded.columns:
-            raise_for_empty(symbol, canonical, "price rows")
-        replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
-        data = downloaded
+        if data is None:
+            # yf.download catches every error, a rate limit included, and returns
+            # an empty frame. Ticker.history raises the rate limit, so it is retried.
+            downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
+                start=start_str,
+                end=end_str,
+                auto_adjust=True,
+                actions=False,
+            ))
+            if downloaded is None:
+                raise_for_empty(symbol, canonical, "price rows")
+            downloaded = _ensure_date_column(downloaded.reset_index())
+            # Only cache real data — never persist an empty frame.
+            if downloaded.empty or "Close" not in downloaded.columns:
+                raise_for_empty(symbol, canonical, "price rows")
+            replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+            data = downloaded
 
     data = _clean_dataframe(data)
 

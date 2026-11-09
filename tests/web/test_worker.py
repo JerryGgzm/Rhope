@@ -108,6 +108,30 @@ def test_a_stop_request_ends_the_run_as_cancelled_keeping_what_was_written(tmp_p
 
 
 @pytest.mark.unit
+def test_a_vendor_fallback_is_logged_but_not_counted_as_a_warning(tmp_path):
+    import logging
+
+    db.init()
+    conn = db.connect()
+    _insert(conn, _job(tmp_path))
+    emitter = worker.Emitter(conn, "r1", [])
+    handler = worker._WarningsToEvents(emitter, ["market"])
+    log = logging.getLogger("tradingagents.dataflows.router")
+
+    log.addHandler(handler)
+    try:
+        log.warning("Vendor %r unavailable for %s: %s; trying next vendor.", "yfinance", "get_indicators", "x")
+        log.warning("Optional %s unavailable for %s: %s", "macro", "get_macro_indicators", "y")
+    finally:
+        log.removeHandler(handler)
+
+    logged = [e for e in events.since(conn, "r1", 0, 100) if e["type"] == "warning"]
+    assert [e["severity"] for e in logged] == ["info", "warning"]
+    assert logged[0]["payload"]["fallback"] is True
+    assert emitter.warnings == 1
+
+
+@pytest.mark.unit
 def test_a_provider_failure_is_classified_without_leaking_the_key():
     from tradingagents.web.errors import classify
 

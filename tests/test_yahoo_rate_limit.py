@@ -137,6 +137,7 @@ def test_a_price_request_that_fails_is_unavailable_even_when_yahoo_answers(monke
     monkeypatch.setattr(ohlcv, "get_config", lambda: {"data_cache_dir": str(tmp_path)})
     monkeypatch.setattr(ohlcv.yf, "Ticker", lambda s: type("T", (), {"history": lambda self, **k: timed_out(**k)})())
     monkeypatch.setattr(common, "vendor_reachable", lambda url: True)
+    monkeypatch.setattr(common.time, "sleep", lambda seconds: None)
 
     with pytest.raises(VendorUnavailableError):
         ohlcv.load_ohlcv("NVDA", "2026-09-23")
@@ -284,3 +285,64 @@ def test_a_missing_time_zone_is_not_taken_for_an_answer(yahoo):
 
     with pytest.raises(VendorUnavailableError):
         market.get_YFin_data_online("AAPL", "2026-09-21", "2026-09-25")
+
+
+def _prices(**kwargs):
+    return pd.DataFrame(
+        {"Open": 1.0, "High": 1.0, "Low": 1.0, "Close": 1.0, "Volume": 1},
+        index=pd.DatetimeIndex(pd.bdate_range(end=DAY, periods=30), name="Date"),
+    )
+
+
+@pytest.mark.unit
+def test_a_dropped_connection_is_retried_before_it_is_reported(yahoo):
+    calls = []
+
+    def flaky(self, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise ConnectionError("Connection reset by peer")
+        return _prices()
+
+    yahoo.setattr(yf.Ticker, "history", flaky)
+
+    assert not ohlcv.load_ohlcv("AAPL", DAY).empty
+    assert len(calls) == 2
+
+
+@pytest.mark.unit
+def test_a_failure_names_its_cause_without_the_request_query(yahoo):
+    def refused(self, **kwargs):
+        raise ConnectionError("Failed to perform, curl: (7) https://query2.finance.yahoo.com/v8/chart?crumb=abc123")
+
+    yahoo.setattr(yf.Ticker, "history", refused)
+
+    with pytest.raises(VendorUnavailableError) as caught:
+        ohlcv.load_ohlcv("AAPL", DAY)
+    message = str(caught.value)
+    assert "ConnectionError: Failed to perform" in message
+    assert "query2.finance.yahoo.com" in message and "abc123" not in message
+
+
+@pytest.mark.unit
+def test_indicators_asked_for_at_once_share_one_download(yahoo):
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    downloads = []
+    guard = threading.Lock()
+
+    def history(self, **kwargs):
+        with guard:
+            downloads.append(1)
+        time.sleep(0.05)
+        return _prices()
+
+    yahoo.setattr(yf.Ticker, "history", history)
+
+    with ThreadPoolExecutor(8) as pool:
+        frames = list(pool.map(lambda _: ohlcv.load_ohlcv("AAPL", DAY), range(8)))
+
+    assert len(downloads) == 1
+    assert all(len(f) == len(frames[0]) for f in frames)

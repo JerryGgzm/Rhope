@@ -3,6 +3,7 @@ reported, and how a price is written out."""
 
 import logging
 import math
+import re
 import time
 
 import yfinance as yf
@@ -61,25 +62,46 @@ def _answered_empty(exc: Exception) -> bool:
     return getattr(getattr(exc, "response", None), "status_code", None) == 404
 
 
-def yf_retry(func, max_retries=3, base_delay=2.0):
+def _is_transient(exc: Exception) -> bool:
+    """A dropped or timed-out connection, which a second attempt often gets through.
+
+    Matched by name: the HTTP stack is requests or curl_cffi depending on the
+    yfinance build, and both name these errors the same way.
+    """
+    names = {cls.__name__ for cls in type(exc).__mro__}
+    return bool(names & {"ConnectionError", "Timeout", "TimeoutError", "ConnectTimeout", "ReadTimeout"})
+
+
+def _failure_detail(exc: Exception) -> str:
+    """The error's first line with any URL cut to its host, so the reason is
+    reported without the request's query string."""
+    text = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
+    text = re.sub(r"(https?://[^/\s?#]+)[^\s]*", r"\1/…", text)
+    return f"{type(exc).__name__}: {text[:200]}" if text else type(exc).__name__
+
+
+def yf_retry(func, max_retries=3, base_delay=2.0, transient_retries=2, transient_delay=1.0):
     """Execute a yfinance call with exponential backoff on rate limits.
 
     yfinance raises YFRateLimitError on HTTP 429 responses but does not
-    retry them internally, so this wrapper retries them. A rate limit that
-    outlasts the retries, or any other exception, is raised as
-    VendorUnavailableError: it failed in transit and says nothing about the
-    symbol. Yahoo answering that it has nothing for the symbol returns None,
-    an empty answer. ``func`` should build its own Ticker and make the request
-    itself: a Ticker keeps a failed ``info`` fetch as done, so asking the same
-    one again reads an empty profile.
+    retry them internally, so this wrapper retries them; a dropped connection
+    or a timeout is retried briefly too. A failure that outlasts the retries,
+    or any other exception, is raised as VendorUnavailableError: it failed in
+    transit and says nothing about the symbol. Yahoo answering that it has
+    nothing for the symbol returns None, an empty answer. ``func`` should build
+    its own Ticker and make the request itself: a Ticker keeps a failed
+    ``info`` fetch as done, so asking the same one again reads an empty profile.
     """
-    for attempt in range(max_retries + 1):
+    attempt = 0
+    transient = 0
+    while True:
         try:
             return func()
         except YFRateLimitError as exc:
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt)
-                logger.warning(f"Yahoo Finance rate limited, retrying in {delay:.0f}s (attempt {attempt + 1}/{max_retries})")
+                attempt += 1
+                logger.warning(f"Yahoo Finance rate limited, retrying in {delay:.0f}s (attempt {attempt}/{max_retries})")
                 time.sleep(delay)
             else:
                 raise VendorUnavailableError(
@@ -88,4 +110,8 @@ def yf_retry(func, max_retries=3, base_delay=2.0):
         except Exception as exc:
             if _answered_empty(exc):
                 return None
-            raise VendorUnavailableError(f"Yahoo Finance request failed: {type(exc).__name__}") from exc
+            if _is_transient(exc) and transient < transient_retries:
+                transient += 1
+                time.sleep(transient_delay * transient)
+                continue
+            raise VendorUnavailableError(f"Yahoo Finance request failed: {_failure_detail(exc)}") from exc

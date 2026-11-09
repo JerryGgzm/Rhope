@@ -107,8 +107,13 @@ class _WarningsToEvents(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             message = record.getMessage()
-            self.emitter.emit("warning", stage=self.stage_ref[0], severity="warning",
-                              payload={"source": record.name, "message": message[:1000]})
+            # A vendor handing over to the next one is not yet a problem: if the
+            # chain fails, the tool's DATA_UNAVAILABLE result is the one warning.
+            fallback = message.endswith("trying next vendor.")
+            self.emitter.emit("warning", stage=self.stage_ref[0],
+                              severity="info" if fallback else "warning",
+                              payload={"source": record.name, "message": message[:1000],
+                                       "fallback": fallback})
         except Exception:
             pass
 

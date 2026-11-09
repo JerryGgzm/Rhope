@@ -659,7 +659,7 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
             </span>
             <span className="who">{e.agent ? analystLabel(e.agent) : stageLabel(e.stage) || "系统"}</span>
             <span className="what">
-              <span className="type">{TYPE_LABEL[e.type] ?? e.type}</span>
+              <span className="type">{e.payload?.fallback ? "切换数据源" : (TYPE_LABEL[e.type] ?? e.type)}</span>
               {describe(e)}
             </span>
             <span className="dur" />
