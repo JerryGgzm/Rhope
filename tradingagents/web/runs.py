@@ -21,6 +21,7 @@ import tradingagents
 from tradingagents.web import db, events
 from tradingagents.web.credentials import CredentialStore
 from tradingagents.web.errors import ApiError
+from tradingagents.web.i18n import both, tr
 from tradingagents.web.paths import atomic_write
 from tradingagents.web.redact import redact_url
 from tradingagents.web.settings import (
@@ -71,11 +72,12 @@ def validate_inputs(req: RunCreate) -> dict:
     try:
         ticker = parse_ticker(req.ticker)
     except ValueError:
-        errors.append({"key": "ticker", "message": "无法识别的代码，例如 AAPL、0700.HK、BTC-USD"})
+        errors.append({"key": "ticker", "message": tr("无法识别的代码，例如 AAPL、0700.HK、BTC-USD", "Unrecognized symbol, e.g. AAPL, 0700.HK, BTC-USD")})
     try:
         date = parse_analysis_date(req.analysis_date)
     except ValueError as exc:
-        message = "分析日期不能晚于今天" if "future" in str(exc) else "日期格式应为 YYYY-MM-DD"
+        message = (tr("分析日期不能晚于今天", "The analysis date cannot be in the future") if "future" in str(exc)
+                   else tr("日期格式应为 YYYY-MM-DD", "Use the YYYY-MM-DD format"))
         errors.append({"key": "analysis_date", "message": message})
     asset_type = req.asset_type or (detect_asset_type(ticker).value if ticker else "stock")
     analysts: list[str] = []
@@ -86,12 +88,12 @@ def validate_inputs(req: RunCreate) -> dict:
     except ValueError as exc:
         text = str(exc)
         if "not available for crypto" in text:
-            text = "加密资产不提供基本面分析师"
+            text = tr("加密资产不提供基本面分析师", "Crypto assets have no fundamentals analyst")
         elif "at least one" in text:
-            text = "至少选择一位分析师"
+            text = tr("至少选择一位分析师", "Choose at least one analyst")
         errors.append({"key": "analysts", "message": text})
     if errors:
-        raise ApiError(422, "INVALID_INPUT", "请检查标出的输入。", field_errors=errors)
+        raise ApiError(422, "INVALID_INPUT", tr("请检查标出的输入。", "Check the highlighted fields."), field_errors=errors)
     return {"ticker": ticker, "analysis_date": date, "asset_type": asset_type, "analysts": analysts}
 
 
@@ -116,19 +118,19 @@ def check_providers(config: dict, credentials: CredentialStore) -> None:
             raise ApiError(422, "PROVIDER_ENDPOINT_INVALID", str(exc), provider=provider) from None
         spec = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
         if spec is not None and spec.require_base_url and not url:
-            raise ApiError(422, "PROVIDER_ENDPOINT_MISSING", f"{provider} 需要设置端点 URL。",
+            raise ApiError(422, "PROVIDER_ENDPOINT_MISSING", tr(f"{provider} 需要设置端点 URL。", f"{provider} needs an endpoint URL."),
                            provider=provider)
         if provider in SIGNED_IN_PROVIDERS:
             from tradingagents.llm_clients import chatgpt_auth
 
             if not chatgpt_auth.signed_in_as():
-                raise ApiError(422, "PROVIDER_SIGN_IN_REQUIRED", "需要先登录 ChatGPT。",
-                               provider=provider, details="在设置的“模型与认证”中登录。")
+                raise ApiError(422, "PROVIDER_SIGN_IN_REQUIRED", tr("需要先登录 ChatGPT。", "Sign in to ChatGPT first."),
+                               provider=provider, details=tr("在设置的“模型与认证”中登录。", "Sign in under Settings → Models & auth."))
             continue
         env = get_api_key_env(provider)
         if env and not (spec is not None and spec.key_optional) and not resolved.get(env):
-            raise ApiError(422, "CREDENTIAL_MISSING", f"{provider} 的 API Key 尚未设置。",
-                           details=f"在设置中填写 {env}。", provider=provider)
+            raise ApiError(422, "CREDENTIAL_MISSING", tr(f"{provider} 的 API Key 尚未设置。", f"The {provider} API key is not set."),
+                           details=tr(f"在设置中填写 {env}。", f"Set {env} in Settings."), provider=provider)
 
 
 def config_summary(config: dict) -> dict:
@@ -163,8 +165,8 @@ def _load_portfolio(conn: sqlite3.Connection, choice: PortfolioChoice) -> dict |
     if choice.mode == "flat":
         return {"context": {"cash": None, "currency": None, "positions": []}, "source": "flat"}
     if not choice.id:
-        raise ApiError(422, "INVALID_INPUT", "请选择持仓快照。",
-                       field_errors=[{"key": "portfolio", "message": "未选择快照"}])
+        raise ApiError(422, "INVALID_INPUT", tr("请选择持仓快照。", "Choose a portfolio snapshot."),
+                       field_errors=[{"key": "portfolio", "message": tr("未选择快照", "No snapshot chosen")}])
     if choice.version is None:
         row = conn.execute("SELECT * FROM portfolios WHERE id = ? ORDER BY version DESC LIMIT 1",
                            (choice.id,)).fetchone()
@@ -172,7 +174,7 @@ def _load_portfolio(conn: sqlite3.Connection, choice: PortfolioChoice) -> dict |
         row = conn.execute("SELECT * FROM portfolios WHERE id = ? AND version = ?",
                            (choice.id, choice.version)).fetchone()
     if row is None:
-        raise ApiError(404, "PORTFOLIO_NOT_FOUND", "找不到所选持仓快照。")
+        raise ApiError(404, "PORTFOLIO_NOT_FOUND", tr("找不到所选持仓快照。", "The chosen portfolio snapshot was not found."))
     data = json.loads(row["data_json"])
     return {"context": data, "source": "snapshot", "id": row["id"], "version": row["version"],
             "name": row["name"], "as_of": row["as_of"]}
@@ -199,12 +201,15 @@ class RunService:
             current = store.current()
             if req.settings_revision != current.revision:
                 raise ApiError(409, "SETTINGS_REVISION_STALE",
-                               "设置已在其他地方更新，请确认后重新提交。",
-                               details=f"提交的是第 {req.settings_revision} 版，当前为第 {current.revision} 版。")
+                               tr("设置已在其他地方更新，请确认后重新提交。",
+                                  "Settings changed elsewhere; review and submit again."),
+                               details=tr(f"提交的是第 {req.settings_revision} 版，当前为第 {current.revision} 版。",
+                                          f"Submitted revision {req.settings_revision}; "
+                                          f"the current one is {current.revision}."))
             try:
                 overrides = validate_config_values(req.overrides)
             except SettingsError as exc:
-                raise ApiError(422, "INVALID_INPUT", "本次覆盖设置无效。",
+                raise ApiError(422, "INVALID_INPUT", tr("本次覆盖设置无效。", "This run's overrides are invalid."),
                                field_errors=exc.field_errors) from None
             if req.checkpoint_enabled is not None:
                 overrides["checkpoint_enabled"] = req.checkpoint_enabled
@@ -248,24 +253,26 @@ class RunService:
     def cancel(self, run_id: str, force: bool) -> dict:
         row = self.conn.execute("SELECT status, worker_pid FROM runs WHERE id = ?", (run_id,)).fetchone()
         if row is None:
-            raise ApiError(404, "RUN_NOT_FOUND", "找不到这次运行。")
+            raise ApiError(404, "RUN_NOT_FOUND", tr("找不到这次运行。", "Run not found."))
         status = row["status"]
         if status in events.TERMINAL_STATUSES:
-            raise ApiError(409, "RUN_FINISHED", "这次运行已经结束。")
+            raise ApiError(409, "RUN_FINISHED", tr("这次运行已经结束。", "This run has already finished."))
         if status == "queued" and not self.manager.is_active(run_id):
             with db.transaction(self.conn):
                 self.conn.execute(
                     "UPDATE runs SET status = 'cancelled', cancel_requested = 1, finished_at = ? WHERE id = ?",
                     (events.now_iso(), run_id))
             events.append(self.conn, run_id, "run.cancelled", severity="warning",
-                          payload={"message": "排队中的任务已取消。"})
+                          payload=both("排队中的任务已取消。", "The queued run was cancelled."))
             return {"status": "cancelled"}
         with db.transaction(self.conn):
             self.conn.execute("UPDATE runs SET status = 'cancelling', cancel_requested = 1 WHERE id = ?",
                               (run_id,))
         events.append(self.conn, run_id, "run.cancelling", severity="warning",
-                      payload={"force": force, "message": "已请求停止；进行中的模型调用结束后退出。"
-                               if not force else "正在强制终止进程。"})
+                      payload={"force": force, **(both("已请求停止；进行中的模型调用结束后退出。",
+                                                   "Stop requested; the run exits after the model call in flight.")
+                                              if not force else both("正在强制终止进程。",
+                                                                     "Terminating the process."))})
         self.manager.signal(run_id, row["worker_pid"], force)
         return {"status": "cancelling"}
 
@@ -319,15 +326,16 @@ class RunManager:
             if row["worker_pid"] and _alive(row["worker_pid"]):
                 self._adopted[row["id"]] = row["worker_pid"]
             else:
-                self._interrupt(row["id"], "服务重启时该任务的进程已不在运行。")
+                self._interrupt(row["id"], both("服务重启时该任务的进程已不在运行。",
+                                                 "The run's process was gone when the service restarted."))
 
-    def _interrupt(self, run_id: str, message: str) -> None:
+    def _interrupt(self, run_id: str, message: dict) -> None:
         with db.transaction(self.conn):
             self.conn.execute(
                 "UPDATE runs SET status = 'interrupted', finished_at = ? WHERE id = ?",
                 (events.now_iso(), run_id))
         events.append(self.conn, run_id, "run.interrupted", severity="error",
-                      payload={"code": "WORKER_LOST", "message": message})
+                      payload={"code": "WORKER_LOST", **message})
 
     def _loop(self) -> None:
         while not self._stop.is_set():
@@ -343,11 +351,13 @@ class RunManager:
             code = proc.poll()
             if code is not None:
                 del self._active[run_id]
-                self._after_exit(run_id, f"worker 进程退出（代码 {code}）但没有报告结果。")
+                self._after_exit(run_id, both(f"worker 进程退出（代码 {code}）但没有报告结果。",
+                                              f"The worker exited (code {code}) without reporting a result."))
         for run_id, pid in list(self._adopted.items()):
             if not _alive(pid):
                 del self._adopted[run_id]
-                self._after_exit(run_id, "worker 进程已退出但没有报告结果。")
+                self._after_exit(run_id, both("worker 进程已退出但没有报告结果。",
+                                              "The worker exited without reporting a result."))
         if self.busy():
             return
         row = self.conn.execute(
@@ -356,7 +366,7 @@ class RunManager:
         if row is not None:
             self._spawn(row["id"], Path(row["run_dir"]), row["settings_revision"])
 
-    def _after_exit(self, run_id: str, message: str) -> None:
+    def _after_exit(self, run_id: str, message: dict) -> None:
         row = self.conn.execute("SELECT status, cancel_requested FROM runs WHERE id = ?", (run_id,)).fetchone()
         if row is None or row["status"] in events.TERMINAL_STATUSES:
             return
@@ -365,16 +375,17 @@ class RunManager:
                 self.conn.execute("UPDATE runs SET status = 'cancelled', finished_at = ? WHERE id = ?",
                                   (events.now_iso(), run_id))
             events.append(self.conn, run_id, "run.cancelled", severity="warning",
-                          payload={"message": "进程已终止；已完成的报告保留。"})
+                          payload=both("进程已终止；已完成的报告保留。", "The process ended; finished reports are kept."))
         else:
             with db.transaction(self.conn):
                 self.conn.execute(
                     "UPDATE runs SET status = 'failed', finished_at = ?, error_json = ? WHERE id = ?",
-                    (events.now_iso(), json.dumps({"code": "WORKER_EXITED", "message": message},
+                    (events.now_iso(), json.dumps({"code": "WORKER_EXITED", **message},
                                                   ensure_ascii=False), run_id))
             events.append(self.conn, run_id, "run.failed", severity="error",
-                          payload={"code": "WORKER_EXITED", "message": message,
-                                   "details": "查看运行目录中的 worker.log。"})
+                          payload={"code": "WORKER_EXITED", **message,
+                                   **both("查看运行目录中的 worker.log。", "See worker.log in the run directory.",
+                                          key="details")})
 
     def _spawn(self, run_id: str, run_dir: Path, revision_no: int | None) -> None:
         revision = SettingsStore(self.conn).get(revision_no or 0)
@@ -398,7 +409,7 @@ class RunManager:
                 self.conn.execute("UPDATE runs SET status = 'failed', finished_at = ? WHERE id = ?",
                                   (events.now_iso(), run_id))
             events.append(self.conn, run_id, "run.failed", severity="error",
-                          payload={"code": "WORKER_START_FAILED", "message": "无法启动分析进程。",
+                          payload={"code": "WORKER_START_FAILED", **both("无法启动分析进程。", "Could not start the analysis process."),
                                    "details": str(exc)})
             return
         log.close()

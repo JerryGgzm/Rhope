@@ -18,6 +18,7 @@ from unittest import mock
 import tradingagents.default_config as default_config
 from tradingagents.default_config import _ENV_OVERRIDES, build_default_config
 from tradingagents.web import db
+from tradingagents.web.i18n import current, tr
 from tradingagents.web.redact import redact_url
 
 _PATH_ENV = {
@@ -124,14 +125,65 @@ ENV_FIELDS: list[Field] = [
 ]
 
 GROUPS = [
-    ("model", "模型与认证"),
-    ("generation", "推理与生成"),
-    ("research", "研究参数"),
-    ("data", "数据来源"),
-    ("review", "复盘与回测"),
-    ("storage", "输出与存储"),
-    ("network", "网络与高级"),
+    ("model", "模型与认证", "Models & auth"),
+    ("generation", "推理与生成", "Reasoning & generation"),
+    ("research", "研究参数", "Research"),
+    ("data", "数据来源", "Data sources"),
+    ("review", "复盘与回测", "Review & backtests"),
+    ("storage", "输出与存储", "Output & storage"),
+    ("network", "网络与高级", "Network & advanced"),
 ]
+
+# English label and description per field, for an English interface.
+EN: dict[str, tuple[str, str]] = {
+    "llm_provider": ("Main provider", "The model provider analyses use by default. The quick and deep tiers can override it."),
+    "backend_url": ("Main endpoint URL", "Leave empty for the provider's default endpoint. Credentials in the URL are shown redacted."),
+    "quick_think_llm": ("Quick model", "Used by analysts, researchers, debaters and the trader. Any model ID is accepted."),
+    "deep_think_llm": ("Deep model", "Used by the research manager and the portfolio manager."),
+    "quick_think_provider": ("Quick-tier provider", "Leave empty to use the main provider."),
+    "deep_think_provider": ("Deep-tier provider", "Leave empty to use the main provider."),
+    "quick_think_backend_url": ("Quick-tier endpoint", ""),
+    "deep_think_backend_url": ("Deep-tier endpoint", ""),
+    "openai_reasoning_effort": ("Reasoning effort (OpenAI / ChatGPT)", "Leave empty for the provider default."),
+    "anthropic_effort": ("Effort (Anthropic)", "Leave empty for the default."),
+    "google_thinking_level": ("Thinking level (Gemini)", "Leave empty for the default."),
+    "temperature": ("Temperature", "Leave empty for each provider's default. Most reasoning models ignore it."),
+    "llm_max_retries": ("SDK retries", "Leave empty for the SDK default (usually 2)."),
+    "max_tokens": ("Output token limit", "Leave empty for no limit."),
+    "output_language": ("Report language", "Language of the analyst reports and the final decision; internal debate stays in English."),
+    "max_debate_rounds": ("Bull/bear rounds", ""),
+    "max_risk_discuss_rounds": ("Risk discussion rounds", ""),
+    "max_recur_limit": ("Graph recursion limit", "LangGraph recursion limit."),
+    "max_tool_rounds": ("Analyst tool rounds", "Past this, analysts are asked to write their report."),
+    "checkpoint_enabled": ("Checkpoints", "Save state after every node, so an interrupted run resumes with the same inputs."),
+    "news_article_limit": ("Company news articles", ""),
+    "global_news_article_limit": ("Macro news articles", ""),
+    "global_news_lookback_days": ("Macro news lookback (days)", ""),
+    "global_news_queries": ("Macro news queries", ""),
+    "data_vendors": ("Data sources (by category)", "Each category tries the listed sources in order; only those you choose are used."),
+    "tool_vendors": ("Data sources (per tool)", "Takes precedence over the category setting."),
+    "holding_period_days": ("Holding window (trading days)", "The window review and backtests measure results over."),
+    "benchmark_ticker": ("Fixed benchmark", "Leave empty to pick the benchmark from the exchange suffix."),
+    "benchmark_map": ("Benchmark map", "Exchange suffix → benchmark symbol; an empty suffix is the default."),
+    "memory_log_max_entries": ("Decision log entries kept", "Leave empty for no rotation; pending entries are never removed."),
+    "results_dir": ("Results directory", "Affects new runs only; old files are not moved."),
+    "data_cache_dir": ("Data cache directory", ""),
+    "memory_log_path": ("Decision log file", ""),
+    "SEC_EDGAR_USER_AGENT": ("SEC EDGAR User-Agent", "SEC requires contact details, e.g. “Name email@example.com”."),
+    "TYPESAFE_DEFAULT_MODEL": ("Typesafe model", ""),
+    "TYPESAFE_BASE_URL": ("Typesafe endpoint", ""),
+    "OLLAMA_BASE_URL": ("Ollama URL", ""),
+    "AZURE_OPENAI_ENDPOINT": ("Azure endpoint", ""),
+    "AZURE_OPENAI_DEPLOYMENT_NAME": ("Azure deployment", ""),
+    "OPENAI_API_VERSION": ("Azure API version", ""),
+    "AWS_REGION": ("AWS region", ""),
+    "AWS_DEFAULT_REGION": ("AWS default region", ""),
+    "AWS_PROFILE": ("AWS profile", ""),
+    "HTTP_PROXY": ("HTTP proxy", ""),
+    "HTTPS_PROXY": ("HTTPS proxy", ""),
+    "ALL_PROXY": ("Proxy for all traffic", ""),
+    "NO_PROXY": ("No proxy for", ""),
+}
 
 _BY_KEY = {f.key: f for f in CONFIG_FIELDS}
 _ENV_BY_KEY = {f.key: f for f in ENV_FIELDS}
@@ -172,53 +224,53 @@ def _validate(f: Field, value):
     if value is None:
         if f.nullable:
             return None
-        raise ValueError("不能为空")
+        raise ValueError(tr("不能为空", "Required"))
     t = f.type
     if t in ("string", "path", "url") or (t == "enum" and not f.enum and f.key.endswith("provider")):
         if not isinstance(value, str):
-            raise ValueError("需要文本")
+            raise ValueError(tr("需要文本", "Text expected"))
         value = value.strip()
         if not value:
             if f.nullable:
                 return None
-            raise ValueError("不能为空")
+            raise ValueError(tr("不能为空", "Required"))
         if t == "url" and not value.startswith(("http://", "https://", "socks5://", "socks5h://")):
-            raise ValueError("需要以 http:// 或 https:// 开头")
+            raise ValueError(tr("需要以 http:// 或 https:// 开头", "Must start with http:// or https://"))
         if f.key.endswith("provider") and value.lower() not in _provider_choices():
-            raise ValueError(f"未知 provider：{value}")
+            raise ValueError(tr(f"未知 provider：{value}", f"Unknown provider: {value}"))
         return value.lower() if f.key.endswith("provider") else value
     if t == "enum":
         if value not in f.enum:
-            raise ValueError(f"可选值：{', '.join(f.enum)}")
+            raise ValueError(tr("可选值：", "Choose from: ") + ", ".join(f.enum))
         return value
     if t == "boolean":
         if not isinstance(value, bool):
-            raise ValueError("需要开关值")
+            raise ValueError(tr("需要开关值", "On or off expected"))
         return value
     if t in ("integer", "number"):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError("需要数字")
+            raise ValueError(tr("需要数字", "Number expected"))
         if t == "integer":
             if value != int(value):
-                raise ValueError("需要整数")
+                raise ValueError(tr("需要整数", "Whole number expected"))
             value = int(value)
         value = float(value) if t == "number" else value
         if value != value or value in (float("inf"), float("-inf")):
-            raise ValueError("需要有限数字")
+            raise ValueError(tr("需要有限数字", "Finite number expected"))
         if f.minimum is not None and value < f.minimum:
-            raise ValueError(f"不能小于 {f.minimum:g}")
+            raise ValueError(tr(f"不能小于 {f.minimum:g}", f"At least {f.minimum:g}"))
         if f.maximum is not None and value > f.maximum:
-            raise ValueError(f"不能大于 {f.maximum:g}")
+            raise ValueError(tr(f"不能大于 {f.maximum:g}", f"At most {f.maximum:g}"))
         return value
     if t == "string_list":
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-            raise ValueError("需要文本列表")
+            raise ValueError(tr("需要文本列表", "List of text expected"))
         return [v.strip() for v in value if v.strip()]
     if t == "map":
         if not isinstance(value, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in value.items()
         ):
-            raise ValueError("需要键值表")
+            raise ValueError(tr("需要键值表", "Key-value map expected"))
         return {k.strip(): v.strip() for k, v in value.items() if v.strip()}
     raise ValueError(f"unsupported type {t}")
 
@@ -228,7 +280,7 @@ def validate_config_values(values: dict) -> dict:
     for key, value in values.items():
         f = _BY_KEY.get(key)
         if f is None:
-            errors.append({"key": key, "message": "未知设置项"})
+            errors.append({"key": key, "message": tr("未知设置项", "Unknown setting")})
             continue
         try:
             out[key] = _validate(f, value)
@@ -286,14 +338,14 @@ class SettingsStore:
         for key, value in env.items():
             f = _ENV_BY_KEY.get(key)
             if f is None:
-                errors.append({"key": key, "message": "未知设置项"})
+                errors.append({"key": key, "message": tr("未知设置项", "Unknown setting")})
                 continue
             try:
                 clean_env[key] = _validate(f, value)
             except ValueError as exc:
                 errors.append({"key": key, "message": str(exc)})
-        errors += [{"key": k, "message": "未知设置项"} for k in reset if k not in _BY_KEY]
-        errors += [{"key": k, "message": "未知设置项"} for k in env_reset if k not in _ENV_BY_KEY]
+        errors += [{"key": k, "message": tr("未知设置项", "Unknown setting")} for k in reset if k not in _BY_KEY]
+        errors += [{"key": k, "message": tr("未知设置项", "Unknown setting")} for k in env_reset if k not in _ENV_BY_KEY]
         if errors:
             raise SettingsError(errors)
         with db.transaction(self.conn):
@@ -328,6 +380,13 @@ def effective_env(revision: Revision) -> dict[str, str]:
     return {k: str(v) for k, v in revision.env.items() if v is not None}
 
 
+def _localized(f: Field) -> dict:
+    if current() != "en" or f.key not in EN:
+        return {}
+    label, description = EN[f.key]
+    return {"label": label, "description": description}
+
+
 def _display(f: Field, value):
     return redact_url(value) if f.secret_like and isinstance(value, str) else value
 
@@ -350,6 +409,7 @@ def describe(revision: Revision) -> dict:
         enum = list(f.enum) or (providers if f.key.endswith("provider") else [])
         fields.append({
             **{k: v for k, v in asdict(f).items() if k not in ("enum", "providers", "secret_like")},
+            **_localized(f),
             "kind": "config",
             "enum": enum,
             "providers": list(f.providers),
@@ -370,6 +430,7 @@ def describe(revision: Revision) -> dict:
             source, value = "default", None
         fields.append({
             **{k: v for k, v in asdict(f).items() if k not in ("enum", "providers", "secret_like")},
+            **_localized(f),
             "kind": "env",
             "enum": list(f.enum),
             "providers": list(f.providers),
@@ -384,6 +445,6 @@ def describe(revision: Revision) -> dict:
     return {
         "revision": revision.revision,
         "saved_at": revision.created_at,
-        "groups": [{"id": g, "label": label} for g, label in GROUPS],
+        "groups": [{"id": g, "label": tr(zh, en)} for g, zh, en in GROUPS],
         "fields": fields,
     }

@@ -43,8 +43,8 @@ CREDENTIALS: dict[str, CredentialSpec] = {
     for spec in [
         *_provider_specs(),
         CredentialSpec("ALPHA_VANTAGE_API_KEY", "data", "Alpha Vantage API Key", optional=True),
-        CredentialSpec("FRED_API_KEY", "data", "FRED API Key（宏观数据）", optional=True),
-        CredentialSpec("TYPESAFE_API_KEY", "data", "Typesafe API Key（社交筛选）", optional=True),
+        CredentialSpec("FRED_API_KEY", "data", "FRED API Key", optional=True),
+        CredentialSpec("TYPESAFE_API_KEY", "data", "Typesafe API Key", optional=True),
         CredentialSpec("AWS_ACCESS_KEY_ID", "aws", "AWS Access Key ID", ("bedrock",), True),
         CredentialSpec("AWS_SECRET_ACCESS_KEY", "aws", "AWS Secret Access Key", ("bedrock",), True),
         CredentialSpec("AWS_SESSION_TOKEN", "aws", "AWS Session Token", ("bedrock",), True),

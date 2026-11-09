@@ -28,6 +28,7 @@ import {
   type StageKey,
   type StepState,
 } from "../../lib/labels";
+import { pickMessage, t, useLang } from "../../lib/i18n";
 
 type TabKey = "decision" | "reports" | "debate" | "log" | "inputs";
 
@@ -37,13 +38,13 @@ function useNow(active: boolean) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!active) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, [active]);
   return now;
 }
 
-const SETTINGS_FIXABLE = new Set(["PROVIDER_AUTH_FAILED", "MODEL_NOT_FOUND"]);
+const SETTINGS_FIXABLE = new Set(["PROVIDER_AUTH_FAILED", "PROVIDER_MODEL_NOT_FOUND"]);
 
 function trackModel(run: RunDetail): TrackModel {
   const failed = run.status === "failed" || run.status === "interrupted";
@@ -57,7 +58,7 @@ function trackModel(run: RunDetail): TrackModel {
     stages[s.key as StageKey] = {
       state,
       seconds: state === "done" ? seconds : null,
-      detail: state === "failed" ? (run.status === "interrupted" ? "已中断" : "失败") : undefined,
+      detail: state === "failed" ? (run.status === "interrupted" ? t("已中断", "Interrupted") : t("失败", "Failed")) : undefined,
     };
   }
   const selected = run.request.analysts;
@@ -72,6 +73,7 @@ function trackModel(run: RunDetail): TrackModel {
 }
 
 export function RunDetailPage() {
+  useLang();
   const { id = "" } = useParams();
   const run = useRun(id);
   const { events, state: stream } = useRunEvents(id);
@@ -80,14 +82,14 @@ export function RunDetailPage() {
     const notFound = run.error instanceof ApiError && run.error.status === 404;
     return (
       <Empty
-        title={notFound ? "找不到这次运行" : "无法读取这次运行"}
+        title={notFound ? t("找不到这次运行", "Run not found") : t("无法读取这次运行", "Could not load this run")}
         action={
           <Link to="/runs" className="btn btn-sm">
-            返回历史
+            {t("返回历史", "Back to history")}
           </Link>
         }
       >
-        {notFound ? "它可能来自另一个数据目录。" : errorText(run.error)}
+        {notFound ? t("它可能来自另一个数据目录。", "It may belong to another data directory.") : errorText(run.error)}
       </Empty>
     );
   }
@@ -151,7 +153,7 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
       },
       {
         onSuccess: (next) => {
-          toast("已创建新的运行");
+          toast(t("已创建新的运行", "New run created"));
           navigate(`/runs/${next.id}`);
         },
         onError: (e) => toast(errorText(e)),
@@ -179,7 +181,7 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
     <>
       <div className="row small t3" style={{ gap: 10, marginBottom: 28 }}>
         <Link to="/runs" className="text-link t2">
-          历史
+          {t("历史", "History")}
         </Link>
         <span>/</span>
         <span className="mono">{run.id}</span>
@@ -197,17 +199,17 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
             <div className="row small t2" style={{ gap: 18 }}>
               <Status status={run.status} />
               <span>
-                分析日期 <span className="num" style={{ color: "var(--text)" }}>{run.analysis_date}</span>
+                {t("分析日期", "Date")} <span className="num" style={{ color: "var(--text)" }}>{run.analysis_date}</span>
               </span>
-              <span className="num">运行于 {formatStamp(run.started_at ?? run.created_at)}</span>
-              {elapsed != null && <span className="num">用时 {formatDuration(elapsed)}</span>}
+              <span className="num">{t("运行于", "Ran")} {formatStamp(run.started_at ?? run.created_at)}</span>
+              {elapsed != null && <span className="num">{t("用时", "Took")} {formatDuration(elapsed)}</span>}
             </div>
           </div>
           <div className="row">
             {active ? (
               run.status === "cancelling" ? (
                 <Button variant="danger" size="sm" loading={cancel.isPending} onClick={() => cancel.mutate(true)}>
-                  强制终止
+                  {t("强制终止", "Force stop")}
                 </Button>
               ) : (
                 <Button
@@ -217,16 +219,16 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
                   icon={<Square size={12} />}
                   onClick={() => cancel.mutate(false, { onError: (e) => toast(errorText(e)) })}
                 >
-                  {run.status === "queued" ? "取消排队" : "请求停止"}
+                  {run.status === "queued" ? t("取消排队", "Leave queue") : t("请求停止", "Stop")}
                 </Button>
               )
             ) : (
               <>
                 <Button size="sm" icon={<Pencil size={14} />} onClick={editParams}>
-                  编辑参数
+                  {t("编辑参数", "Edit inputs")}
                 </Button>
                 <Button size="sm" variant="solid" icon={<RotateCcw size={14} />} loading={rerun.isPending} onClick={doRerun}>
-                  重新运行
+                  {t("重新运行", "Run again")}
                 </Button>
               </>
             )}
@@ -236,7 +238,7 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
                   ref={ref}
                   size="sm"
                   variant="ghost"
-                  aria-label="更多操作"
+                  aria-label={t("更多操作", "More actions")}
                   aria-haspopup="menu"
                   aria-expanded={open}
                   onClick={toggle}
@@ -254,17 +256,17 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
                       setDiag(true);
                     }}
                   >
-                    诊断 <span className="t3">{issues.length} 项</span>
+                    {t("诊断", "Diagnostics")} <span className="t3">{issues.length}</span>
                   </button>
                   <button
                     className="menu-item"
                     role="menuitem"
                     onClick={() => {
                       close();
-                      navigator.clipboard.writeText(run.id).then(() => toast("运行 ID 已复制"));
+                      navigator.clipboard.writeText(run.id).then(() => toast(t("运行 ID 已复制", "Run ID copied")));
                     }}
                   >
-                    复制运行 ID
+                    {t("复制运行 ID", "Copy run ID")}
                   </button>
                 </>
               )}
@@ -274,84 +276,113 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
 
         <ResearchTrack model={trackModel(run)} />
         {run.status === "running" && (
-          <p className="small t3">分析师并行运行中。总时长无法可靠估计，因此不显示百分比。</p>
+          <p className="small t3">
+            {t(
+              "分析师并行运行中。总时长无法可靠估计，因此不显示百分比。",
+              "Analysts are working in parallel. Total time can't be estimated reliably, so no percentage is shown.",
+            )}
+          </p>
         )}
-        {run.status === "queued" && <p className="small t3">排队中：轮到这次运行时自动开始，一次只运行一个分析。</p>}
+        {run.status === "queued" && (
+          <p className="small t3">
+            {t("排队中：轮到这次运行时自动开始，一次只运行一个分析。", "Queued: starts automatically when its turn comes; one analysis runs at a time.")}
+          </p>
+        )}
       </header>
 
       <div style={{ marginBottom: 8 }}>
         {stream === "lost" && active && (
-          <Notice kind="warn" title="与服务的连接已断开，后台状态待确认。">
-            分析可能仍在后台运行；重连后会补齐期间的事件，不会重新启动任务。
+          <Notice kind="warn" title={t("与服务的连接已断开，后台状态待确认。", "Lost connection to the service; background state unknown.")}>
+            {t(
+              "分析可能仍在后台运行；重连后会补齐期间的事件，不会重新启动任务。",
+              "The analysis may still be running; missed events are filled in on reconnect and the run is not restarted.",
+            )}
           </Notice>
         )}
         {run.status === "cancelling" && (
-          <Notice kind="warn" title="正在停止。">
-            进行中的模型调用结束后进程退出，期间仍可能计费。需要立即结束可“强制终止”。
+          <Notice kind="warn" title={t("正在停止。", "Stopping.")}>
+            {t(
+              "进行中的模型调用结束后进程退出，期间仍可能计费。需要立即结束可“强制终止”。",
+              "The process exits after the model call in progress, which may still be billed. Use “Force stop” to end it now.",
+            )}
           </Notice>
         )}
         {run.status === "failed" && run.error && (
           <Notice
             kind="error"
-            title={`${run.error.stage ? stageLabel(run.error.stage) + "阶段" : ""}失败：${run.error.message}`}
+            title={
+              run.error.stage
+                ? t(`${stageLabel(run.error.stage)}阶段失败：`, `Failed during ${stageLabel(run.error.stage)}: `) + pickMessage(run.error)
+                : t("失败：", "Failed: ") + pickMessage(run.error)
+            }
             actions={
               <>
                 {SETTINGS_FIXABLE.has(run.error.code) && (
                   <Link to="/settings" className="btn btn-sm">
-                    前往设置
+                    {t("前往设置", "Open settings")}
                   </Link>
                 )}
                 <Button size="sm" variant="ghost" onClick={() => setDiag(true)}>
-                  诊断
+                  {t("诊断", "Diagnostics")}
                 </Button>
               </>
             }
           >
-            {Object.values(s).some(Boolean) && "已完成的报告仍可阅读。"}
+            {Object.values(s).some(Boolean) && t("已完成的报告仍可阅读。", "Finished reports are still readable. ")}
             <span className="mono t3">{run.error.code}</span>
           </Notice>
         )}
         {run.status === "interrupted" && (
-          <Notice kind="warn" title="运行被中断。">
-            服务重启或进程意外退出。已完成的报告保留；开启断点恢复的运行可用相同输入重新运行以继续。
+          <Notice kind="warn" title={t("运行被中断。", "The run was interrupted.")}>
+            {t(
+              "服务重启或进程意外退出。已完成的报告保留；开启断点恢复的运行可用相同输入重新运行以继续。",
+              "The service restarted or the process exited unexpectedly. Finished reports are kept; with checkpoints on, rerun with the same inputs to continue.",
+            )}
           </Notice>
         )}
-        {run.status === "cancelled" && <Notice kind="info" title="已取消。">已完成的报告保留。</Notice>}
+        {run.status === "cancelled" && (
+          <Notice kind="info" title={t("已取消。", "Cancelled.")}>
+            {t("已完成的报告保留。", "Finished reports are kept.")}
+          </Notice>
+        )}
         {run.rating === "REVIEW" && (
-          <Notice kind="warn" title="需复核。">
-            无法从最终决策中读出评级，本次记录为“需复核”，不是持有或任何交易建议。请阅读决策原文自行判断。
+          <Notice kind="warn" title={t("需复核。", "Needs review.")}>
+            {t(
+              "无法从最终决策中读出评级，本次记录为“需复核”，不是持有或任何交易建议。请阅读决策原文自行判断。",
+              "No rating could be read from the final decision, so it is recorded as “Review”, which is not Hold or any trade advice. Read the decision text and judge for yourself.",
+            )}
           </Notice>
         )}
         {run.status === "completed_with_warnings" && issues.length > 0 && (
           <Notice
             kind="warn"
-            title={`${issues.length} 项警告。`}
+            title={t(`${issues.length} 项警告。`, `${issues.length} warning${issues.length === 1 ? "" : "s"}.`)}
             actions={
               <Button size="sm" variant="ghost" onClick={() => setDiag(true)}>
-                查看
+                {t("查看", "View")}
               </Button>
             }
           >
-            {String(issues[0].payload.message ?? issues[0].payload.preview ?? issues[0].type).slice(0, 120)}
+            {(pickMessage(issues[0].payload) || String(issues[0].payload.preview ?? issues[0].type)).slice(0, 120)}
           </Notice>
         )}
         {run.memory_note && (
-          <Notice kind="info" title="决策日志：">
+          <Notice kind="info" title={t("决策日志：", "Decision log:")}>
             {run.memory_note}
           </Notice>
         )}
       </div>
 
       <Tabs<TabKey>
-        label="运行内容"
+        label={t("运行内容", "Run content")}
         value={tab}
         onChange={setTab}
         tabs={[
-          { key: "decision", label: "结论" },
-          { key: "reports", label: "分析报告", count: reportsDone },
-          { key: "debate", label: "研究与风控" },
-          { key: "log", label: "运行记录", count: events.length },
-          { key: "inputs", label: "本次输入" },
+          { key: "decision", label: t("结论", "Decision") },
+          { key: "reports", label: t("分析报告", "Reports"), count: reportsDone },
+          { key: "debate", label: t("研究与风控", "Debate & risk") },
+          { key: "log", label: t("运行记录", "Log"), count: events.length },
+          { key: "inputs", label: t("本次输入", "Inputs") },
         ]}
       />
       <div className="tab-panel" key={tab} role="tabpanel">
@@ -369,10 +400,10 @@ function RunView({ run, events, stream }: { run: RunDetail; events: RunEvent[]; 
 
 function ExportMenu({ run }: { run: RunDetail }) {
   const labels: Record<string, [string, string]> = {
-    report_md: ["Markdown 报告", ".md"],
-    report_html: ["HTML 报告", ".html"],
-    state: ["运行数据", ".json"],
-    report_zip: ["全部报告", ".zip"],
+    report_md: [t("Markdown 报告", "Markdown report"), ".md"],
+    report_html: [t("HTML 报告", "HTML report"), ".html"],
+    state: [t("运行数据", "Run data"), ".json"],
+    report_zip: [t("全部报告", "All reports"), ".zip"],
   };
   if (!run.artifacts.length) return null;
   const html = run.artifacts.find((a) => a.kind === "report_html");
@@ -381,7 +412,7 @@ function ExportMenu({ run }: { run: RunDetail }) {
       align="end"
       trigger={({ toggle, ref, open }) => (
         <Button ref={ref} size="sm" aria-haspopup="menu" aria-expanded={open} onClick={toggle} icon={<Download size={14} />}>
-          导出 <ChevronDown size={13} />
+          {t("导出", "Export")} <ChevronDown size={13} />
         </Button>
       )}
     >
@@ -396,7 +427,7 @@ function ExportMenu({ run }: { run: RunDetail }) {
             <>
               <div className="menu-sep" />
               <a className="menu-item" role="menuitem" href={artifactUrl(run.id, html.id, true)} target="_blank" rel="noopener noreferrer" onClick={close}>
-                在新标签页查看 HTML
+                {t("在新标签页查看 HTML", "Open HTML in a new tab")}
               </a>
             </>
           )}
@@ -412,33 +443,44 @@ function DecisionTab({ run, sections }: { run: RunDetail; sections: Record<strin
   const trader = sections.trader_investment_plan;
   if (!decision) {
     if (ACTIVE.has(run.status)) {
-      return <Empty title="最终决策尚未生成">投资组合经理会在风险讨论结束后给出评级。已完成的分析师报告可以先在“分析报告”中阅读。</Empty>;
+      return (
+        <Empty title={t("最终决策尚未生成", "No final decision yet")}>
+          {t(
+            "投资组合经理会在风险讨论结束后给出评级。已完成的分析师报告可以先在“分析报告”中阅读。",
+            "The portfolio manager rates after the risk debate. Finished analyst reports can be read under “Reports” meanwhile.",
+          )}
+        </Empty>
+      );
     }
-    return <Empty title="没有最终评级">这次运行没有产生最终决策。没有评级不等于“持有”。</Empty>;
+    return (
+      <Empty title={t("没有最终评级", "No final rating")}>
+        {t("这次运行没有产生最终决策。没有评级不等于“持有”。", "This run produced no final decision. No rating does not mean “Hold”.")}
+      </Empty>
+    );
   }
   return (
     <div className="stack-xl">
       <div className="row-between" style={{ alignItems: "flex-start" }}>
         {isRating(run.rating) ? (
-          <RatingHero rating={run.rating} source="最终评级 · 投资组合经理" />
+          <RatingHero rating={run.rating} source={t("最终评级 · 投资组合经理", "Final rating · portfolio manager")} />
         ) : (
-          <span className="t2">评级尚未记录</span>
+          <span className="t2">{t("评级尚未记录", "No rating recorded yet")}</span>
         )}
         <div className="row">
           <Button
             size="sm"
             variant="ghost"
             icon={<Copy size={14} />}
-            onClick={() => navigator.clipboard.writeText(decision).then(() => toast("结论已复制"))}
+            onClick={() => navigator.clipboard.writeText(decision).then(() => toast(t("结论已复制", "Decision copied")))}
           >
-            复制
+            {t("复制", "Copy")}
           </Button>
           <ExportMenu run={run} />
         </div>
       </div>
 
       <section className="stack" style={{ gap: 10 }}>
-        <span className="eyebrow">投资组合经理决策</span>
+        <span className="eyebrow">{t("投资组合经理决策", "Portfolio manager decision")}</span>
         <Markdown text={decision} />
       </section>
 
@@ -447,15 +489,20 @@ function DecisionTab({ run, sections }: { run: RunDetail; sections: Record<strin
           <hr className="hr" />
           <section className="stack" style={{ gap: 10 }}>
             <div className="row-between">
-              <h2 className="section-title">交易员方案</h2>
-              <span className="small t3">来自交易员，独立于最终评级</span>
+              <h2 className="section-title">{t("交易员方案", "Trader plan")}</h2>
+              <span className="small t3">{t("来自交易员，独立于最终评级", "From the trader, separate from the final rating")}</span>
             </div>
             <Markdown text={trader} />
           </section>
         </>
       )}
 
-      <p className="small t3">研究建议，不是交易指令。页面只展示代理生成的消息、工具事件与报告，不包含模型内部推理。</p>
+      <p className="small t3">
+        {t(
+          "研究建议，不是交易指令。页面只展示代理生成的消息、工具事件与报告，不包含模型内部推理。",
+          "Research, not a trade instruction. Only agent messages, tool events and reports are shown, never the model's internal reasoning.",
+        )}
+      </p>
     </div>
   );
 }
@@ -468,12 +515,20 @@ function ReportsTab({ run, sections }: { run: RunDetail; sections: Record<string
         const selected = run.request.analysts.includes(a.key);
         const text = sections[REPORT_KEY[a.key]];
         const working = active && run.agents[a.key]?.state === "running";
-        const state = !selected ? "未选择" : text ? "已生成" : working ? "生成中" : active ? "等待" : "未生成";
+        const state = !selected
+          ? t("未选择", "Not selected")
+          : text
+            ? t("已生成", "Ready")
+            : working
+              ? t("生成中", "Writing")
+              : active
+                ? t("等待", "Waiting")
+                : t("未生成", "Not produced");
         return (
           <Disclosure
             key={a.key}
             defaultOpen={i === 0 && !!text}
-            title={`${a.label}分析`}
+            title={t(`${a.label}分析`, `${a.label} analysis`)}
             meta={
               <span className="row small" style={{ gap: 10, fontWeight: 400 }}>
                 {selected && !text && working && <span className="dot" data-tone="active" aria-hidden />}
@@ -484,9 +539,9 @@ function ReportsTab({ run, sections }: { run: RunDetail; sections: Record<string
             {text ? (
               <Markdown text={text} />
             ) : !selected ? (
-              <p className="small t3">本次没有选择这位分析师。</p>
+              <p className="small t3">{t("本次没有选择这位分析师。", "This analyst was not selected.")}</p>
             ) : !working && active ? (
-              <p className="small t3">分析师开始后，报告会在这里逐步出现。</p>
+              <p className="small t3">{t("分析师开始后，报告会在这里逐步出现。", "The report appears here once the analyst starts.")}</p>
             ) : working ? (
               <div className="stack-sm" style={{ maxWidth: 560, gap: 10 }}>
                 <div className="skeleton" style={{ height: 12, width: "72%" }} />
@@ -494,7 +549,7 @@ function ReportsTab({ run, sections }: { run: RunDetail; sections: Record<string
                 <div className="skeleton" style={{ height: 12, width: "58%" }} />
               </div>
             ) : (
-              <p className="small t3">运行结束前这份报告没有生成。</p>
+              <p className="small t3">{t("运行结束前这份报告没有生成。", "This report was not produced before the run ended.")}</p>
             )}
           </Disclosure>
         );
@@ -518,15 +573,19 @@ function DebateTab({ run, sections }: { run: RunDetail; sections: Record<string,
     .map((k) => [k, sections[k]]);
   if (!parts.length) {
     return ACTIVE.has(run.status) ? (
-      <Empty title="研究辩论尚未开始">分析师报告全部完成后，多空研究员会开始辩论。</Empty>
+      <Empty title={t("研究辩论尚未开始", "The debate hasn't started")}>
+        {t("分析师报告全部完成后，多空研究员会开始辩论。", "Bull and bear researchers debate once all analyst reports are done.")}
+      </Empty>
     ) : (
-      <Empty title="没有研究与风控内容">这次运行在辩论开始前结束。</Empty>
+      <Empty title={t("没有研究与风控内容", "No debate or risk content")}>
+        {t("这次运行在辩论开始前结束。", "This run ended before the debate began.")}
+      </Empty>
     );
   }
   return (
     <div style={{ marginTop: -16 }}>
       {parts.map(([k, text], i) => (
-        <Disclosure key={k} title={SECTION_LABEL[k]} defaultOpen={i === 0} meta={<span className="small t3">{formatNumber(text.length, 0)} 字</span>}>
+        <Disclosure key={k} title={SECTION_LABEL[k]} defaultOpen={i === 0} meta={<span className="small t3">{formatNumber(text.length, 0)} {t("字", "chars")}</span>}>
           <Markdown text={text} />
         </Disclosure>
       ))}
@@ -534,53 +593,58 @@ function DebateTab({ run, sections }: { run: RunDetail; sections: Record<string,
   );
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  queued: "排队",
-  "run.started": "开始",
-  "run.finalizing": "收尾",
-  "run.completed": "完成",
-  "run.failed": "失败",
-  "run.cancelled": "取消",
-  "run.cancelling": "停止中",
-  "run.interrupted": "中断",
-  "stage.started": "阶段开始",
-  "stage.completed": "阶段完成",
-  "agent.started": "开始",
-  "agent.completed": "完成",
-  message: "消息",
-  "tool.started": "工具",
-  "tool.completed": "返回",
-  "tool.failed": "工具失败",
-  "report.updated": "报告",
-  "stats.updated": "统计",
-  warning: "警告",
-  checkpoint: "断点",
-  "artifact.saved": "已保存",
-  "artifact.failed": "保存失败",
+const TYPE_TEXT: Record<string, readonly [string, string]> = {
+  queued: ["排队", "Queued"],
+  "run.started": ["开始", "Start"],
+  "run.finalizing": ["收尾", "Finishing"],
+  "run.completed": ["完成", "Done"],
+  "run.failed": ["失败", "Failed"],
+  "run.cancelled": ["取消", "Cancelled"],
+  "run.cancelling": ["停止中", "Stopping"],
+  "run.interrupted": ["中断", "Interrupted"],
+  "stage.started": ["阶段开始", "Stage start"],
+  "stage.completed": ["阶段完成", "Stage done"],
+  "agent.started": ["开始", "Start"],
+  "agent.completed": ["完成", "Done"],
+  message: ["消息", "Message"],
+  "tool.started": ["工具", "Tool"],
+  "tool.completed": ["返回", "Result"],
+  "tool.failed": ["工具失败", "Tool failed"],
+  "report.updated": ["报告", "Report"],
+  "stats.updated": ["统计", "Stats"],
+  warning: ["警告", "Warning"],
+  checkpoint: ["断点", "Checkpoint"],
+  "artifact.saved": ["已保存", "Saved"],
+  "artifact.failed": ["保存失败", "Save failed"],
 };
+
+const typeLabel = (type: string) => (TYPE_TEXT[type] ? t(...TYPE_TEXT[type]) : type);
 
 function describe(e: RunEvent): string {
   const p = e.payload as Record<string, unknown>;
   switch (e.type) {
     case "queued":
-      return `排队第 ${p.position ?? "?"} 位`;
+      return t(`排队第 ${p.position ?? "?"} 位`, `Position ${p.position ?? "?"} in queue`);
     case "run.started":
-      return `进程 ${p.pid} · ${p.ticker} · ${p.analysis_date}`;
+      return `${t("进程", "Process")} ${p.pid} · ${p.ticker} · ${p.analysis_date}`;
     case "stage.started":
     case "stage.completed":
       return stageLabel(e.stage);
     case "agent.started":
     case "agent.completed":
-      return `${analystLabel(e.agent ?? "")}分析师`;
+      return t(`${analystLabel(e.agent ?? "")}分析师`, `${analystLabel(e.agent ?? "")} analyst`);
     case "tool.started":
       return `${p.tool}(${String(p.args ?? "")})`;
     case "tool.completed":
     case "tool.failed":
-      return `${p.tool} · ${formatNumber(p.chars as number, 0)} 字符${p.code ? ` · ${p.code}` : ""}${p.preview ? ` — ${String(p.preview).slice(0, 160)}` : ""}`;
+      return `${p.tool} · ${formatNumber(p.chars as number, 0)} ${t("字符", "chars")}${p.code ? ` · ${p.code}` : ""}${p.preview ? ` — ${String(p.preview).slice(0, 160)}` : ""}`;
     case "report.updated":
-      return `${SECTION_LABEL[p.section as string] ?? p.section} · ${formatNumber(p.chars as number, 0)} 字`;
+      return `${SECTION_LABEL[p.section as string] ?? p.section} · ${formatNumber(p.chars as number, 0)} ${t("字", "chars")}`;
     case "stats.updated":
-      return `模型调用 ${p.llm_calls} · 工具 ${p.tool_calls} · 输入 ${formatNumber(p.tokens_in as number, 0)} / 输出 ${formatNumber(p.tokens_out as number, 0)} tokens`;
+      return t(
+        `模型调用 ${p.llm_calls} · 工具 ${p.tool_calls} · 输入 ${formatNumber(p.tokens_in as number, 0)} / 输出 ${formatNumber(p.tokens_out as number, 0)} tokens`,
+        `${p.llm_calls} model calls · ${p.tool_calls} tools · ${formatNumber(p.tokens_in as number, 0)} in / ${formatNumber(p.tokens_out as number, 0)} out tokens`,
+      );
     case "message":
       return String(p.text ?? "")
         .replace(/[*_`#>]+/g, "")
@@ -588,14 +652,14 @@ function describe(e: RunEvent): string {
         .trim()
         .slice(0, 280);
     case "checkpoint":
-      return p.resuming ? "从保存的断点继续" : "全新开始（断点已开启）";
+      return p.resuming ? t("从保存的断点继续", "Resuming from the saved checkpoint") : t("全新开始（断点已开启）", "Fresh start (checkpoints on)");
     case "run.completed":
-      return `${p.rating ?? "无评级"}`;
+      return `${p.rating ?? t("无评级", "No rating")}`;
     case "run.failed":
     case "artifact.failed":
-      return `${p.message ?? ""} ${p.code ? `(${p.code})` : ""}`;
+      return `${pickMessage(p)} ${p.code ? `(${p.code})` : ""}`;
     default:
-      return String(p.message ?? "");
+      return pickMessage(p);
   }
 }
 
@@ -617,12 +681,12 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
   return (
     <div className="stack">
       <div className="row-between">
-        <div className="pills" role="group" aria-label="筛选">
+        <div className="pills" role="group" aria-label={t("筛选", "Filter")}>
           {(
             [
-              ["all", "全部"],
-              ["tools", "工具"],
-              ["warning", "警告与错误"],
+              ["all", t("全部", "All")],
+              ["tools", t("工具", "Tools")],
+              ["warning", t("警告与错误", "Warnings & errors")],
             ] as const
           ).map(([k, l]) => (
             <button key={k} className="pill" aria-pressed={sev === k} onClick={() => setSev(k)}>
@@ -632,7 +696,7 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
         </div>
         {live && (
           <span className="status">
-            <span className="dot" data-tone="active" aria-hidden /> 实时
+            <span className="dot" data-tone="active" aria-hidden /> {t("实时", "Live")}
           </span>
         )}
       </div>
@@ -644,7 +708,7 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
           setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
         }}
       >
-        {rows.length === 0 && <p className="small t3" style={{ padding: "16px 0" }}>没有符合条件的事件。</p>}
+        {rows.length === 0 && <p className="small t3" style={{ padding: "16px 0" }}>{t("没有符合条件的事件。", "No matching events.")}</p>}
         {rows.map((e) => (
           <div className="log-row" key={e.sequence}>
             <span className="t">{formatClock(e.timestamp)}</span>
@@ -657,9 +721,9 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
                 <span className="dot" data-tone={e.type.endsWith("completed") ? "ok" : "muted"} style={{ width: 5, height: 5 }} />
               )}
             </span>
-            <span className="who">{e.agent ? analystLabel(e.agent) : stageLabel(e.stage) || "系统"}</span>
+            <span className="who">{e.agent ? analystLabel(e.agent) : stageLabel(e.stage) || t("系统", "System")}</span>
             <span className="what">
-              <span className="type">{e.payload?.fallback ? "切换数据源" : (TYPE_LABEL[e.type] ?? e.type)}</span>
+              <span className="type">{e.payload?.fallback ? t("切换数据源", "Fallback") : typeLabel(e.type)}</span>
               {describe(e)}
             </span>
             <span className="dur" />
@@ -668,7 +732,7 @@ function LogTab({ events, live }: { events: RunEvent[]; live: boolean }) {
         {!follow && live && (
           <div className="jump">
             <Button size="sm" variant="solid" icon={<ArrowDown size={14} />} onClick={() => setFollow(true)}>
-              有新消息
+              {t("有新消息", "New messages")}
             </Button>
           </div>
         )}
@@ -683,65 +747,74 @@ function InputsTab({ run }: { run: RunDetail }) {
   const vendors = { ...((c.data_vendors as object) ?? {}), ...((c.tool_vendors as object) ?? {}) } as Record<string, string>;
   return (
     <div className="stack-xl">
-      <p className="small t2">以下参数在任务启动时固定；之后修改设置不会影响本次运行。配置快照已脱敏，不包含密钥。</p>
+      <p className="small t2">
+        {t(
+          "以下参数在任务启动时固定；之后修改设置不会影响本次运行。配置快照已脱敏，不包含密钥。",
+          "These inputs were fixed when the run started; later settings changes don't affect it. The config snapshot is redacted and holds no keys.",
+        )}
+      </p>
       <div className="cols-2" style={{ gap: 64 }}>
         <section className="stack">
-          <span className="eyebrow">请求</span>
+          <span className="eyebrow">{t("请求", "Request")}</span>
           <dl className="kv">
-            <dt>代码</dt>
+            <dt>{t("代码", "Symbol")}</dt>
             <dd className="mono">{r.ticker}</dd>
-            <dt>资产类型</dt>
+            <dt>{t("资产类型", "Asset type")}</dt>
             <dd>{ASSET_TYPE_LABEL[r.asset_type] ?? r.asset_type}</dd>
-            <dt>分析日期</dt>
+            <dt>{t("分析日期", "Date")}</dt>
             <dd className="num">{r.analysis_date}</dd>
-            <dt>分析师</dt>
-            <dd>{r.analysts.map(analystLabel).join("、")}</dd>
-            <dt>轮数</dt>
+            <dt>{t("分析师", "Analysts")}</dt>
+            <dd>{r.analysts.map(analystLabel).join(t("、", ", "))}</dd>
+            <dt>{t("轮数", "Rounds")}</dt>
             <dd>
-              辩论 {String(c.max_debate_rounds)} · 风控 {String(c.max_risk_discuss_rounds)}
+              {t("辩论", "Debate")} {String(c.max_debate_rounds)} · {t("风控", "risk")} {String(c.max_risk_discuss_rounds)}
             </dd>
-            <dt>报告语言</dt>
+            <dt>{t("报告语言", "Report language")}</dt>
             <dd>{String(c.output_language)}</dd>
-            <dt>断点恢复</dt>
-            <dd>{c.checkpoint_enabled ? "开启" : "关闭"}</dd>
-            <dt>持仓</dt>
+            <dt>{t("断点恢复", "Checkpoints")}</dt>
+            <dd>{c.checkpoint_enabled ? t("开启", "On") : t("关闭", "Off")}</dd>
+            <dt>{t("持仓", "Position")}</dt>
             <dd>
-              {r.portfolio.mode === "none" ? "不提供" : r.portfolio.mode === "flat" ? "明确空仓" : `快照 ${r.portfolio.id ?? ""} v${r.portfolio.version ?? ""}`}
+              {r.portfolio.mode === "none"
+                ? t("不提供", "None")
+                : r.portfolio.mode === "flat"
+                  ? t("明确空仓", "Flat")
+                  : `${t("快照", "Snapshot")} ${r.portfolio.id ?? ""} v${r.portfolio.version ?? ""}`}
             </dd>
           </dl>
         </section>
         <section className="stack">
-          <span className="eyebrow">模型与版本</span>
+          <span className="eyebrow">{t("模型与版本", "Models & version")}</span>
           <dl className="kv">
-            <dt>快速层</dt>
+            <dt>{t("快速层", "Quick tier")}</dt>
             <dd>
               {String(c.quick_think_provider)} · <span className="mono">{String(c.quick_think_llm)}</span>
             </dd>
-            <dt>深度层</dt>
+            <dt>{t("深度层", "Deep tier")}</dt>
             <dd>
               {String(c.deep_think_provider)} · <span className="mono">{String(c.deep_think_llm)}</span>
             </dd>
             {c.backend_url ? (
               <>
-                <dt>端点</dt>
+                <dt>{t("端点", "Endpoint")}</dt>
                 <dd className="mono small">{String(c.backend_url)}</dd>
               </>
             ) : null}
             {c.openai_reasoning_effort ? (
               <>
-                <dt>推理强度</dt>
+                <dt>{t("推理强度", "Reasoning effort")}</dt>
                 <dd>{String(c.openai_reasoning_effort)}</dd>
               </>
             ) : null}
-            <dt>设置版本</dt>
+            <dt>{t("设置版本", "Settings")}</dt>
             <dd>revision {run.settings_revision ?? 0}</dd>
             <dt>TradingAgents</dt>
             <dd className="mono">{String(c.version)}</dd>
             {run.stats && (
               <>
-                <dt>调用统计</dt>
+                <dt>{t("调用统计", "Usage")}</dt>
                 <dd className="num">
-                  模型 {run.stats.llm_calls} · 工具 {run.stats.tool_calls} · tokens {formatNumber(run.stats.tokens_in, 0)} /{" "}
+                  {t("模型", "models")} {run.stats.llm_calls} · {t("工具", "tools")} {run.stats.tool_calls} · tokens {formatNumber(run.stats.tokens_in, 0)} /{" "}
                   {formatNumber(run.stats.tokens_out, 0)}
                 </dd>
               </>
@@ -750,7 +823,7 @@ function InputsTab({ run }: { run: RunDetail }) {
         </section>
       </div>
       <section className="stack">
-        <span className="eyebrow">数据来源</span>
+        <span className="eyebrow">{t("数据来源", "Data sources")}</span>
         <dl className="kv small">
           {Object.entries(vendors).map(([k, v]) => (
             <div key={k} style={{ display: "contents" }}>
@@ -779,20 +852,20 @@ function DiagnosticsDrawer({
   const items = issues.slice(-100);
   const copy = () => {
     const detail = { run_id: run.id, status: run.status, error: run.error, issues: items };
-    navigator.clipboard.writeText(JSON.stringify(detail, null, 2)).then(() => toast("脱敏详情已复制"));
+    navigator.clipboard.writeText(JSON.stringify(detail, null, 2)).then(() => toast(t("脱敏详情已复制", "Redacted details copied")));
   };
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title="诊断"
+      title={t("诊断", "Diagnostics")}
       footer={
         <>
           <span className="small t3">
             <span className="mono">{run.id}</span>
           </span>
           <Button size="sm" style={{ marginLeft: "auto" }} icon={<Copy size={14} />} onClick={copy}>
-            复制脱敏详情
+            {t("复制脱敏详情", "Copy redacted details")}
           </Button>
         </>
       }
@@ -801,20 +874,24 @@ function DiagnosticsDrawer({
         <section className="stack" style={{ gap: 12 }}>
           <div className="row" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
             <AlertTriangle size={15} style={{ marginTop: 3, flex: "none" }} className="danger-text" />
-            <strong style={{ fontWeight: 600 }}>{run.error.message}</strong>
+            <strong style={{ fontWeight: 600 }}>{pickMessage(run.error)}</strong>
           </div>
           <span className="tag tag-mono" style={{ alignSelf: "flex-start" }}>
             {run.error.code}
           </span>
           <dl className="kv small">
-            <dt>阶段</dt>
+            <dt>{t("阶段", "Stage")}</dt>
             <dd>{stageLabel(run.error.stage) || "—"}</dd>
-            <dt>可重试</dt>
-            <dd>{run.error.retryable ? "是" : "否"}</dd>
-            <dt>结束于</dt>
+            <dt>{t("可重试", "Retryable")}</dt>
+            <dd>{run.error.retryable ? t("是", "Yes") : t("否", "No")}</dd>
+            <dt>{t("结束于", "Ended")}</dt>
             <dd>{formatStamp(run.finished_at)}</dd>
           </dl>
-          {run.error.details && <p className="small t2" style={{ wordBreak: "break-word" }}>{run.error.details}</p>}
+          {run.error.details && (
+            <p className="small t2" style={{ wordBreak: "break-word" }}>
+              {pickMessage(run.error, "details")}
+            </p>
+          )}
           {run.error.traceback && (
             <pre className="mono micro t2" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 280, overflow: "auto" }}>
               {run.error.traceback}
@@ -822,7 +899,7 @@ function DiagnosticsDrawer({
           )}
         </section>
       )}
-      {!run.error && items.length === 0 && <p className="small t3">没有警告或错误。</p>}
+      {!run.error && items.length === 0 && <p className="small t3">{t("没有警告或错误。", "No warnings or errors.")}</p>}
       {items.map((e, i) => (
         <section
           key={e.sequence}
@@ -831,18 +908,18 @@ function DiagnosticsDrawer({
         >
           <div className="row" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
             <AlertTriangle size={15} style={{ marginTop: 3, flex: "none" }} className={e.severity === "error" ? "danger-text" : "caution-text"} />
-            <strong style={{ fontWeight: 600, wordBreak: "break-word" }}>{describe(e) || TYPE_LABEL[e.type] || e.type}</strong>
+            <strong style={{ fontWeight: 600, wordBreak: "break-word" }}>{describe(e) || typeLabel(e.type)}</strong>
           </div>
           <dl className="kv small">
-            <dt>时间</dt>
+            <dt>{t("时间", "Time")}</dt>
             <dd className="num">{formatClock(e.timestamp)}</dd>
-            <dt>阶段</dt>
+            <dt>{t("阶段", "Stage")}</dt>
             <dd>{stageLabel(e.stage) || "—"}</dd>
-            <dt>类型</dt>
+            <dt>{t("类型", "Type")}</dt>
             <dd className="mono">{e.type}</dd>
             {e.payload.source ? (
               <>
-                <dt>来源</dt>
+                <dt>{t("来源", "Source")}</dt>
                 <dd className="mono">{String(e.payload.source)}</dd>
               </>
             ) : null}

@@ -3,6 +3,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePresence } from "../lib/motion";
 import { Button } from "./ui";
+import { t } from "../lib/i18n";
 
 export function Drawer({
   open,
@@ -59,7 +60,7 @@ export function Drawer({
       <div className="drawer" data-state={state} role="dialog" aria-modal="true" aria-label={title} ref={panelRef} tabIndex={-1}>
         <div className="drawer-head">
           <h3>{title}</h3>
-          <Button variant="ghost" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="关闭" icon={<X size={18} />} />
+          <Button variant="ghost" style={{ marginLeft: "auto" }} onClick={onClose} aria-label={t("关闭", "Close")} icon={<X size={18} />} />
         </div>
         <div className="drawer-body">{children}</div>
         {footer && <div className="drawer-foot">{footer}</div>}

@@ -6,6 +6,7 @@ import { Button, Field, Notice, Pill, RatingInline, Segmented, Status, ToggleRow
 import { ApiError, OfflineError, api, errorText } from "../../lib/api/client";
 import { useCapabilities, useCreateRun, useRuns, useSettings } from "../../lib/api/hooks";
 import type { RunCreateBody, SettingsDoc } from "../../lib/api/types";
+import { t, useLang } from "../../lib/i18n";
 import { ANALYSTS, ASSET_TYPE_LABEL, type AnalystKey } from "../../lib/labels";
 
 type PortfolioMode = "none" | "flat";
@@ -74,20 +75,21 @@ function useTickerCheck(input: string) {
       return;
     }
     const ctl = new AbortController();
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       api<TickerCheck>(`/tickers/check?symbol=${encodeURIComponent(value)}`, { signal: ctl.signal })
         .then(setCheck)
         .catch(() => undefined);
     }, 250);
     return () => {
       ctl.abort();
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
   }, [input]);
   return check;
 }
 
 export function AnalysisPage() {
+  const lang = useLang();
   const navigate = useNavigate();
   const location = useLocation();
   const prefill = (location.state as { prefill?: Partial<Form> } | null)?.prefill;
@@ -112,7 +114,11 @@ export function AnalysisPage() {
   const provider = String(setting(doc, "llm_provider") ?? "");
   const quickProvider = String(setting(doc, "quick_think_provider") ?? provider);
   const deepProvider = String(setting(doc, "deep_think_provider") ?? provider);
-  const language = form.language ?? String(setting(doc, "output_language") ?? "English");
+  // An explicitly configured report language wins; otherwise reports follow the interface.
+  const languageField = doc?.fields.find((f) => f.key === "output_language" && f.kind === "config");
+  const language =
+    form.language ??
+    (languageField && languageField.source !== "default" ? String(languageField.value) : lang === "zh" ? "Chinese" : "English");
   const checkpoint = form.checkpoint ?? Boolean(setting(doc, "checkpoint_enabled"));
 
   const symbol = check?.valid ? check.symbol! : form.ticker.trim().toUpperCase();
@@ -148,11 +154,11 @@ export function AnalysisPage() {
   const fieldError = (key: string) => serverError?.fieldError(key);
   const errors = {
     ticker:
-      (submitted && !form.ticker.trim() && "请输入股票或加密资产代码。") ||
-      (check && !check.valid && "无法识别的代码，例如 AAPL、0700.HK、BTC-USD。") ||
+      (submitted && !form.ticker.trim() && t("请输入股票或加密资产代码。", "Enter a stock or crypto symbol.")) ||
+      (check && !check.valid && t("无法识别的代码，例如 AAPL、0700.HK、BTC-USD。", "Unrecognized symbol, e.g. AAPL, 0700.HK, BTC-USD.")) ||
       fieldError("ticker"),
-    date: (form.date > today() && "分析日期不能晚于今天。") || fieldError("analysis_date"),
-    analysts: (submitted && effectiveAnalysts.length === 0 && "至少选择一位分析师。") || fieldError("analysts"),
+    date: (form.date > today() && t("分析日期不能晚于今天。", "The analysis date cannot be in the future.")) || fieldError("analysis_date"),
+    analysts: (submitted && effectiveAnalysts.length === 0 && t("至少选择一位分析师。", "Choose at least one analyst.")) || fieldError("analysts"),
   };
 
   const toggleAnalyst = (k: AnalystKey) =>
@@ -188,22 +194,25 @@ export function AnalysisPage() {
 
   return (
     <>
-      <PageHead title="新的研究" sub="单只股票或加密资产 · 多位分析师协作给出研究建议" />
+      <PageHead
+        title={t("新的研究", "New research")}
+        sub={t("单只股票或加密资产 · 多位分析师协作给出研究建议", "One stock or crypto asset · a team of analysts builds a research view")}
+      />
 
       <div className="split">
-        <aside className="split-aside stack-lg" aria-label="分析参数">
+        <aside className="split-aside stack-lg" aria-label={t("分析参数", "Analysis parameters")}>
           <Field
-            label="代码"
+            label={t("代码", "Symbol")}
             htmlFor="ticker"
             error={errors.ticker}
             hint={
               check?.valid && check.symbol !== form.ticker.trim().toUpperCase() ? (
                 <>
-                  将按 <span className="mono">{check.symbol}</span> 分析
+                  {t("将按", "Analyzed as")} <span className="mono">{check.symbol}</span> {t("分析", "")}
                 </>
               ) : (
                 <>
-                  支持交易所后缀，如 <span className="mono">AAPL</span> · <span className="mono">0700.HK</span> ·{" "}
+                  {t("支持交易所后缀，如", "Exchange suffixes work, e.g.")} <span className="mono">AAPL</span> · <span className="mono">0700.HK</span> ·{" "}
                   <span className="mono">600519.SS</span> · <span className="mono">BTC-USD</span>
                 </>
               )
@@ -222,14 +231,14 @@ export function AnalysisPage() {
             />
           </Field>
 
-          <Field label="分析日期" error={errors.date} htmlFor="date">
+          <Field label={t("分析日期", "Analysis date")} error={errors.date} htmlFor="date">
             <Segmented
-              label="日期模式"
+              label={t("日期模式", "Date mode")}
               value={form.dateMode}
               onChange={(v) => setForm((f) => ({ ...f, dateMode: v, date: v === "today" ? today() : f.date }))}
               options={[
-                { value: "today", label: "今天" },
-                { value: "history", label: "历史日期" },
+                { value: "today", label: t("今天", "Today") },
+                { value: "history", label: t("历史日期", "Past date") },
               ]}
             />
             {form.dateMode === "history" && (
@@ -246,9 +255,13 @@ export function AnalysisPage() {
           </Field>
 
           <Field
-            label="分析师"
+            label={t("分析师", "Analysts")}
             error={errors.analysts}
-            hint={cryptoBlocked.length ? "加密资产没有公司财报，基本面分析师不适用。" : undefined}
+            hint={
+              cryptoBlocked.length
+                ? t("加密资产没有公司财报，基本面分析师不适用。", "Crypto has no company financials, so the fundamentals analyst does not apply.")
+                : undefined
+            }
           >
             <div className="pills">
               {ANALYSTS.map((a) => {
@@ -259,7 +272,7 @@ export function AnalysisPage() {
                     checked={form.analysts.includes(a.key) && !blocked}
                     disabled={blocked}
                     onToggle={() => toggleAnalyst(a.key)}
-                    title={blocked ? "加密资产不适用" : a.desc}
+                    title={blocked ? t("加密资产不适用", "Not for crypto") : a.desc}
                   >
                     {a.label}
                   </Pill>
@@ -268,28 +281,28 @@ export function AnalysisPage() {
             </div>
           </Field>
 
-          <Field label="研究深度">
+          <Field label={t("研究深度", "Depth")}>
             <Segmented
-              label="研究深度"
+              label={t("研究深度", "Depth")}
               value={form.depth}
               onChange={(v) => set("depth", v)}
               options={[
-                { value: 1, label: "轻量" },
-                { value: 3, label: "标准" },
-                { value: 5, label: "深入" },
+                { value: 1, label: t("轻量", "Light") },
+                { value: 3, label: t("标准", "Standard") },
+                { value: 5, label: t("深入", "Deep") },
               ]}
             />
             <div className="row-between field-hint">
               <span>
-                辩论 {debate} 轮 · 风控 {risk} 轮
+                {t(`辩论 ${debate} 轮 · 风控 ${risk} 轮`, `Debate ${debate} · risk ${risk} rounds`)}
               </span>
               <button className="text-link micro t2" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
-                {advanced ? "收起" : "分别设置"}
+                {advanced ? t("收起", "Hide") : t("分别设置", "Set separately")}
               </button>
             </div>
             {advanced && (
               <div className="cols-2" style={{ gap: 12 }}>
-                <Field label="研究辩论" machineKey="max_debate_rounds">
+                <Field label={t("研究辩论", "Debate")} machineKey="max_debate_rounds">
                   <input
                     className="input num"
                     type="number"
@@ -300,7 +313,7 @@ export function AnalysisPage() {
                     onChange={(e) => set("debateRounds", e.target.value ? Number(e.target.value) : null)}
                   />
                 </Field>
-                <Field label="风险讨论" machineKey="max_risk_discuss_rounds">
+                <Field label={t("风险讨论", "Risk debate")} machineKey="max_risk_discuss_rounds">
                   <input
                     className="input num"
                     type="number"
@@ -315,23 +328,26 @@ export function AnalysisPage() {
             )}
           </Field>
 
-          <Field label="持仓上下文">
+          <Field label={t("持仓上下文", "Position context")}>
             <Segmented
-              label="持仓上下文"
+              label={t("持仓上下文", "Position context")}
               value={form.pfMode}
               onChange={(v) => set("pfMode", v)}
               options={[
-                { value: "none", label: "不提供" },
-                { value: "flat", label: "明确空仓" },
+                { value: "none", label: t("不提供", "None") },
+                { value: "flat", label: t("明确空仓", "Flat") },
               ]}
             />
             <div className="field-hint">
-              {form.pfMode === "none" && "分析不知道你的仓位，按一般情况给出建议。"}
-              {form.pfMode === "flat" && "明确告知当前没有持仓；现金未知时保持未知。"} 持仓快照将在“持仓”页接入后可选。
+              {form.pfMode === "none" &&
+                t("分析不知道你的仓位，按一般情况给出建议。", "The analysis does not know your position and advises generally.")}
+              {form.pfMode === "flat" &&
+                t("明确告知当前没有持仓；现金未知时保持未知。", "States you hold no position; unknown cash stays unknown.")}{" "}
+              {t("持仓快照将在“持仓”页接入后可选。", "Portfolio snapshots become available once the Portfolio page is connected.")}
             </div>
           </Field>
 
-          <Field label="报告语言" machineKey="output_language" htmlFor="lang">
+          <Field label={t("报告语言", "Report language")} machineKey="output_language" htmlFor="lang">
             <select id="lang" className="select" value={language} onChange={(e) => set("language", e.target.value)}>
               {languageOptions.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -343,16 +359,16 @@ export function AnalysisPage() {
           </Field>
 
           <div className="stack-sm" style={{ gap: 10 }}>
-            <span className="eyebrow">运行选项</span>
+            <span className="eyebrow">{t("运行选项", "Run options")}</span>
             <ToggleRow
-              label="断点恢复"
+              label={t("断点恢复", "Resume from checkpoint")}
               checked={checkpoint}
               onChange={(v) => set("checkpoint", v)}
-              hint="中断后用相同输入重新运行，会从上次保存的步骤继续。"
+              hint={t("中断后用相同输入重新运行，会从上次保存的步骤继续。", "Rerunning with the same inputs after an interruption continues from the last saved step.")}
             />
-            <ToggleRow label="保存报告文件" checked={form.saveReport} onChange={(v) => set("saveReport", v)} />
+            <ToggleRow label={t("保存报告文件", "Save report files")} checked={form.saveReport} onChange={(v) => set("saveReport", v)} />
             <ToggleRow
-              label="同时生成 HTML"
+              label={t("同时生成 HTML", "Also create HTML")}
               checked={form.html && form.saveReport}
               onChange={(v) => set("html", v)}
               disabled={!form.saveReport}
@@ -363,7 +379,7 @@ export function AnalysisPage() {
         <div className="stack-xl">
           <section className="stack-lg">
             <div className="stack-sm" style={{ gap: 4 }}>
-              <span className="eyebrow">即将分析</span>
+              <span className="eyebrow">{t("即将分析", "About to analyze")}</span>
               <div className="row" style={{ gap: 14, alignItems: "baseline" }}>
                 <span className="serif" style={{ fontSize: 64, lineHeight: 1, color: symbol ? "var(--text)" : "var(--text-3)" }}>
                   {symbol || "—"}
@@ -373,43 +389,43 @@ export function AnalysisPage() {
             </div>
 
             <dl className="kv">
-              <dt>分析日期</dt>
+              <dt>{t("分析日期", "Date")}</dt>
               <dd className="num">
                 {form.dateMode === "today" ? today() : form.date}{" "}
-                <span className="t3">· {isHistory ? "历史分析，仅使用当日可得数据" : "今天"}</span>
+                <span className="t3">· {isHistory ? t("历史分析，仅使用当日可得数据", "past date: only data available that day is used") : t("今天", "today")}</span>
               </dd>
-              <dt>分析师</dt>
+              <dt>{t("分析师", "Analysts")}</dt>
               <dd>
                 {effectiveAnalysts.length
                   ? ANALYSTS.filter((a) => effectiveAnalysts.includes(a.key))
                       .map((a) => a.label)
-                      .join("、")
-                  : "未选择"}
+                      .join(t("、", ", "))
+                  : t("未选择", "None selected")}
               </dd>
-              <dt>模型</dt>
+              <dt>{t("模型", "Models")}</dt>
               <dd>
                 {doc ? (
                   <>
                     <span className="mono">{String(setting(doc, "quick_think_llm"))}</span>{" "}
-                    <span className="t3">快速{quickProvider !== provider ? ` · ${quickProvider}` : ""}</span> ·{" "}
+                    <span className="t3">{t("快速", "quick")}{quickProvider !== provider ? ` · ${quickProvider}` : ""}</span> ·{" "}
                     <span className="mono">{String(setting(doc, "deep_think_llm"))}</span>{" "}
-                    <span className="t3">深度{deepProvider !== provider ? ` · ${deepProvider}` : ""}</span>{" "}
+                    <span className="t3">{t("深度", "deep")}{deepProvider !== provider ? ` · ${deepProvider}` : ""}</span>{" "}
                     <span className="t3">· {provider}</span>
                     <Link to="/settings" className="text-link small t2" style={{ marginLeft: 8 }}>
-                      修改
+                      {t("修改", "Change")}
                     </Link>
                   </>
                 ) : (
-                  <span className="t3">读取设置中…</span>
+                  <span className="t3">{t("读取设置中…", "Loading settings…")}</span>
                 )}
               </dd>
-              <dt>持仓</dt>
-              <dd>{form.pfMode === "none" ? "不提供" : "明确空仓 · 现金未知"}</dd>
+              <dt>{t("持仓", "Position")}</dt>
+              <dd>{form.pfMode === "none" ? t("不提供", "None") : t("明确空仓 · 现金未知", "Flat · cash unknown")}</dd>
             </dl>
 
             <div>
               {settings.isError && (
-                <Notice kind="error" title="无法读取设置。">
+                <Notice kind="error" title={t("无法读取设置。", "Could not load settings.")}>
                   {errorText(settings.error)}
                 </Notice>
               )}
@@ -417,19 +433,21 @@ export function AnalysisPage() {
                 <Notice
                   key={m.provider}
                   kind="error"
-                  title={`缺少 ${m.label} 的 API Key。`}
+                  title={t(`缺少 ${m.label} 的 API Key。`, `${m.label} API key is missing.`)}
                   actions={
                     <Link to="/settings" className="btn btn-sm">
-                      前往设置
+                      {t("前往设置", "Open settings")}
                     </Link>
                   }
                 >
-                  在设置中填写 <span className="mono">{m.env}</span>；表单内容会保留。
+                  {t("在设置中填写", "Set")} <span className="mono">{m.env}</span>
+                  {t("；表单内容会保留。", " in Settings; your form is kept.")}
                 </Notice>
               ))}
               {fredMissing && (
                 <Notice kind="info">
-                  未配置 <span className="mono">FRED_API_KEY</span>，宏观数据会缺失，不影响核心分析。
+                  <span className="mono">FRED_API_KEY</span>{" "}
+                  {t("未配置，宏观数据会缺失，不影响核心分析。", "is not set: macro data will be missing; the core analysis is unaffected.")}
                 </Notice>
               )}
               {serverError && !serverError.body.field_errors.length && (
@@ -441,7 +459,7 @@ export function AnalysisPage() {
                       serverError.body.code,
                     ) ? (
                       <Link to="/settings" className="btn btn-sm">
-                        前往设置
+                        {t("前往设置", "Open settings")}
                       </Link>
                     ) : undefined
                   }
@@ -450,8 +468,8 @@ export function AnalysisPage() {
                 </Notice>
               )}
               {create.error instanceof OfflineError && (
-                <Notice kind="error" title="无法连接本地服务，任务没有创建。">
-                  服务恢复后可再次提交；不会重复创建。
+                <Notice kind="error" title={t("无法连接本地服务，任务没有创建。", "Cannot reach the local service; no run was created.")}>
+                  {t("服务恢复后可再次提交；不会重复创建。", "Submit again once it is back; it will not be created twice.")}
                 </Notice>
               )}
             </div>
@@ -465,21 +483,21 @@ export function AnalysisPage() {
                 onClick={start}
                 icon={<ArrowRight size={17} />}
               >
-                开始分析
+                {t("开始分析", "Start analysis")}
               </Button>
-              <span className="small t3">研究建议，不会下单或改变持仓。</span>
+              <span className="small t3">{t("研究建议，不会下单或改变持仓。", "Research only: no orders are placed and no positions change.")}</span>
             </div>
           </section>
 
           <section className="section">
             <div className="row-between">
-              <h2 className="section-title">最近</h2>
+              <h2 className="section-title">{t("最近", "Recent")}</h2>
               <Link to="/runs" className="text-link small t2">
-                全部历史
+                {t("全部历史", "All history")}
               </Link>
             </div>
             <div>
-              {recent.data?.items.length === 0 && <p className="small t3">还没有运行记录。开始第一次分析后会出现在这里。</p>}
+              {recent.data?.items.length === 0 && <p className="small t3">{t("还没有运行记录。开始第一次分析后会出现在这里。", "No runs yet. Your first analysis will appear here.")}</p>}
               {recent.isError && <p className="small t3">{errorText(recent.error)}</p>}
               {recent.data?.items.map((r) => (
                 <Link key={r.id} to={`/runs/${r.id}`} className="recent-row">

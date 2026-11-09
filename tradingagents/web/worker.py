@@ -21,6 +21,7 @@ from pathlib import Path
 from tradingagents.web import db, events
 from tradingagents.web.credentials import CREDENTIALS
 from tradingagents.web.errors import classify
+from tradingagents.web.i18n import both
 from tradingagents.web.paths import atomic_write
 from tradingagents.web.redact import redact
 
@@ -320,7 +321,8 @@ def run(job: dict, conn, emitter: Emitter, cancel: list[bool]) -> None:
             final_state.update(chunk)
 
         emitter.emit("run.finalizing", stage="decision",
-                     payload={"message": "写入决策日志、清理断点并保存报告"})
+                     payload=both("写入决策日志、清理断点并保存报告",
+                                  "Logging the decision, clearing the checkpoint, saving reports"))
         graph.record_decision(ticker, trade_date, final_state)
         graph.clear_checkpoint_on_success(ticker, trade_date, asset_type, portfolio)
     finally:
@@ -363,10 +365,13 @@ def run(job: dict, conn, emitter: Emitter, cancel: list[bool]) -> None:
     if review:
         emitter.emit("warning", stage="decision", severity="warning",
                      payload={"source": "rating", "code": "REVIEW",
-                              "message": "无法从最终决策中读出评级，本次记录为“需复核”，不是交易建议。"})
+                              **both("无法从最终决策中读出评级，本次记录为“需复核”，不是交易建议。",
+                                     "No rating could be read from the final decision; it is recorded as REVIEW, "
+                                     "not a trading call.")})
     if not rating:
         emitter.emit("warning", stage="decision", severity="warning",
-                     payload={"source": "decision", "message": "本次没有产生最终决策。"})
+                     payload={"source": "decision",
+                              **both("本次没有产生最终决策。", "This run produced no final decision.")})
     final_stats = stats.get_stats()
     status = "completed_with_warnings" if emitter.warnings else "completed"
     emitter.emit("run.completed", payload={"status": status, "rating": rating, "review": review,
@@ -396,7 +401,7 @@ def main(argv: list[str]) -> int:
         return 0
     except Cancelled:
         emitter.emit("run.cancelled", severity="warning",
-                     payload={"message": "已按请求停止；已完成的报告保留。"})
+                     payload=both("已按请求停止；已完成的报告保留。", "Stopped as requested; finished reports are kept."))
         _set_run(conn, run_id, status="cancelled", finished_at=events.now_iso())
         return 0
     except BaseException as exc:

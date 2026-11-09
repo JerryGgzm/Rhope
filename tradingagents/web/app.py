@@ -20,6 +20,7 @@ import tradingagents
 from tradingagents.web import db, events
 from tradingagents.web.credentials import CREDENTIALS, CredentialStore
 from tradingagents.web.errors import ApiError
+from tradingagents.web.i18n import lang_from_header, set_lang, tr
 from tradingagents.web.runs import RunCreate, RunManager, RunService
 from tradingagents.web.settings import RevisionConflict, SettingsError, SettingsStore, describe
 
@@ -87,18 +88,19 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
     async def guard(request: Request, call_next):
         request_id = "req_" + pysecrets.token_hex(6)
         request.state.request_id = request_id
+        set_lang(lang_from_header(request.headers.get("accept-language")))
         host = request.headers.get("host", "")
         if host not in allowed_hosts:
-            return JSONResponse(ApiError(421, "HOST_NOT_ALLOWED", "只接受本机地址访问。").body(request_id),
+            return JSONResponse(ApiError(421, "HOST_NOT_ALLOWED", tr("只接受本机地址访问。", "Only local addresses are accepted.")).body(request_id),
                                 status_code=421)
         if request.url.path.startswith("/api/") and request.method not in SAFE_METHODS:
             origin = request.headers.get("origin")
             if origin not in allowed_origins:
-                return JSONResponse(ApiError(403, "ORIGIN_NOT_ALLOWED", "请求来源不被允许。").body(request_id),
+                return JSONResponse(ApiError(403, "ORIGIN_NOT_ALLOWED", tr("请求来源不被允许。", "The request origin is not allowed.")).body(request_id),
                                     status_code=403)
             token = request.headers.get("x-csrf-token", "")
             if not hmac.compare_digest(token, csrf_token):
-                return JSONResponse(ApiError(403, "CSRF_INVALID", "会话已过期，请刷新页面。",
+                return JSONResponse(ApiError(403, "CSRF_INVALID", tr("会话已过期，请刷新页面。", "The session expired; reload the page."),
                                              retryable=True).body(request_id), status_code=403)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
@@ -118,7 +120,7 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
         from tradingagents.web.errors import classify
 
         info = classify(exc, credentials.secret_values())
-        err = ApiError(500, "INTERNAL_ERROR", "服务内部错误。", details=info["details"])
+        err = ApiError(500, "INTERNAL_ERROR", tr("服务内部错误。", "Internal service error."), details=info["details"])
         return JSONResponse(err.body(getattr(request.state, "request_id", None)), status_code=500)
 
     from fastapi.exceptions import RequestValidationError
@@ -127,7 +129,7 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
     async def invalid_request(request: Request, exc: RequestValidationError):
         fields = [{"key": ".".join(str(p) for p in e["loc"][1:]) or "body", "message": e["msg"]}
                   for e in exc.errors()]
-        err = ApiError(422, "INVALID_INPUT", "请求格式不正确。", field_errors=fields)
+        err = ApiError(422, "INVALID_INPUT", tr("请求格式不正确。", "The request is malformed."), field_errors=fields)
         return JSONResponse(err.body(getattr(request.state, "request_id", None)), status_code=422)
 
     # ---- session, health, capabilities -------------------------------------------------
@@ -159,9 +161,9 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
 
         providers = []
         seen = set()
-        regional = {"qwen": ("qwen-cn", "Qwen（中国区）", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-                    "glm": ("glm-cn", "GLM（中国区）", "https://open.bigmodel.cn/api/paas/v4/"),
-                    "minimax": ("minimax-cn", "MiniMax（中国区）", "https://api.minimaxi.com/v1")}
+        regional = {"qwen": ("qwen-cn", tr("Qwen（中国区）", "Qwen (China)"), "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+                    "glm": ("glm-cn", tr("GLM（中国区）", "GLM (China)"), "https://open.bigmodel.cn/api/paas/v4/"),
+                    "minimax": ("minimax-cn", tr("MiniMax（中国区）", "MiniMax (China)"), "https://api.minimaxi.com/v1")}
         rows = []
         for display, key, url in _llm_provider_table():
             rows.append((display, key, url))
@@ -188,15 +190,15 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
             "version": tradingagents.__version__,
             "providers": providers,
             "analysts": [
-                {"id": "market", "label": "技术", "crypto": True},
-                {"id": "social", "label": "情绪", "crypto": True},
-                {"id": "news", "label": "新闻", "crypto": True},
-                {"id": "fundamentals", "label": "基本面", "crypto": False},
+                {"id": "market", "label": tr("技术", "Technical"), "crypto": True},
+                {"id": "social", "label": tr("情绪", "Sentiment"), "crypto": True},
+                {"id": "news", "label": tr("新闻", "News"), "crypto": True},
+                {"id": "fundamentals", "label": tr("基本面", "Fundamentals"), "crypto": False},
             ],
             "languages": [{"id": k, "label": v} for k, v in LANGUAGES],
-            "depths": [{"id": "light", "rounds": 1, "label": "轻量"},
-                       {"id": "standard", "rounds": 3, "label": "标准"},
-                       {"id": "deep", "rounds": 5, "label": "深入"}],
+            "depths": [{"id": "light", "rounds": 1, "label": tr("轻量", "Light")},
+                       {"id": "standard", "rounds": 3, "label": tr("标准", "Standard")},
+                       {"id": "deep", "rounds": 5, "label": tr("深入", "Deep")}],
             "ticker_examples": ["AAPL", "0700.HK", "600519.SS", "BTC-USD"],
         }
 
@@ -224,10 +226,10 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
         try:
             revision = store.save(body.base_revision, body.config, body.reset, body.env, body.env_reset)
         except SettingsError as exc:
-            raise ApiError(422, "INVALID_SETTINGS", "部分设置无效。", field_errors=exc.field_errors) from None
+            raise ApiError(422, "INVALID_SETTINGS", tr("部分设置无效。", "Some settings are invalid."), field_errors=exc.field_errors) from None
         except RevisionConflict as exc:
-            raise ApiError(409, "SETTINGS_REVISION_STALE", "设置已在其他标签页更新，请刷新后再改。",
-                           details=f"当前为第 {exc.current} 版。") from None
+            raise ApiError(409, "SETTINGS_REVISION_STALE", tr("设置已在其他标签页更新，请刷新后再改。", "Settings changed in another tab; reload before editing."),
+                           details=tr(f"当前为第 {exc.current} 版。", f"Now at revision {exc.current}.")) from None
         return {**describe(revision), "credentials": list(credentials.status().values())}
 
     @app.put("/api/v1/credentials")
@@ -235,7 +237,7 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
         try:
             credentials.update(body.set, body.clear)
         except KeyError as exc:
-            raise ApiError(422, "UNKNOWN_CREDENTIAL", "未知的凭证名称。", details=str(exc)) from None
+            raise ApiError(422, "UNKNOWN_CREDENTIAL", tr("未知的凭证名称。", "Unknown credential name."), details=str(exc)) from None
         return {"credentials": list(credentials.status().values())}
 
     # ---- runs ----------------------------------------------------------------------------
@@ -338,11 +340,11 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
         row = _run_row(c, run_id)
         art = c.execute("SELECT * FROM artifacts WHERE id = ? AND run_id = ?", (artifact_id, run_id)).fetchone()
         if art is None:
-            raise ApiError(404, "ARTIFACT_NOT_FOUND", "找不到这个文件。")
+            raise ApiError(404, "ARTIFACT_NOT_FOUND", tr("找不到这个文件。", "File not found."))
         base = Path(row["run_dir"]).resolve()
         path = (base / art["rel_path"]).resolve()
         if base not in path.parents or not path.is_file():
-            raise ApiError(404, "ARTIFACT_NOT_FOUND", "找不到这个文件。")
+            raise ApiError(404, "ARTIFACT_NOT_FOUND", tr("找不到这个文件。", "File not found."))
         headers = {}
         if inline and art["kind"] == "report_html":
             # Shown in the app's own iframe: no scripts, no navigation, no network.
@@ -358,14 +360,14 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
 
     @app.get("/api/{rest:path}", include_in_schema=False)
     def api_not_found(rest: str):
-        raise ApiError(404, "NOT_FOUND", "没有这个接口。")
+        raise ApiError(404, "NOT_FOUND", tr("没有这个接口。", "No such endpoint."))
 
     @app.get("/{rest:path}", include_in_schema=False)
     def spa(rest: str):
         index = STATIC_DIR / "index.html"
         if not index.is_file():
             return JSONResponse({"error": {"code": "FRONTEND_NOT_BUILT",
-                                           "message": "前端尚未构建：在 web/ 运行 npm run build。"}},
+                                           "message": tr("前端尚未构建：在 web/ 运行 npm run build。", "The frontend is not built: run npm run build in web/.")}},
                                 status_code=503)
         candidate = (STATIC_DIR / rest).resolve()
         if rest and STATIC_DIR.resolve() in candidate.parents and candidate.is_file():
@@ -379,7 +381,7 @@ def create_app(port: int = 8765, dev: bool = False) -> FastAPI:
 def _run_row(c: sqlite3.Connection, run_id: str) -> sqlite3.Row:
     row = c.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
     if row is None:
-        raise ApiError(404, "RUN_NOT_FOUND", "找不到这次运行。")
+        raise ApiError(404, "RUN_NOT_FOUND", tr("找不到这次运行。", "Run not found."))
     return row
 
 

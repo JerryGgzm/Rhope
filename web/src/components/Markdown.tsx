@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { t } from "../lib/i18n";
 
 const SAFE_PROTOCOLS = ["http", "https", "mailto"];
 
@@ -23,7 +24,7 @@ export function Markdown({ text }: { text: string }) {
               {children}
             </a>
           ),
-          img: ({ alt }) => <span className="t3">[图片：{alt || "未命名"}]</span>,
+          img: ({ alt }) => <span className="t3">[{t("图片", "Image")}: {alt || t("未命名", "untitled")}]</span>,
         }}
       >
         {text}

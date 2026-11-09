@@ -1,3 +1,4 @@
+import { getLang, t } from "../i18n";
 import type { ApiErrorBody } from "./types";
 
 const BASE = "/api/v1";
@@ -18,7 +19,7 @@ export class ApiError extends Error {
 /** The request never reached the service (it is down or the network failed). */
 export class OfflineError extends Error {
   constructor() {
-    super("无法连接本地服务。");
+    super(t("无法连接本地服务。", "Cannot reach the local service."));
   }
 }
 
@@ -46,7 +47,7 @@ async function parseError(res: Response): Promise<ApiError> {
     const json = await res.json();
     body = json.error ?? { code: "HTTP_" + res.status, message: res.statusText, field_errors: [] };
   } catch {
-    body = { code: "HTTP_" + res.status, message: `服务返回 ${res.status}`, field_errors: [] };
+    body = { code: "HTTP_" + res.status, message: t(`服务返回 ${res.status}`, `The service answered ${res.status}`), field_errors: [] };
   }
   body.field_errors ??= [];
   return new ApiError(res.status, body);
@@ -59,7 +60,11 @@ export async function api<T>(
   const method = init.method ?? "GET";
   const unsafe = method !== "GET" && method !== "HEAD";
   const send = async (refresh: boolean) => {
-    const headers: Record<string, string> = { Accept: "application/json", ...init.headers };
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Accept-Language": getLang() === "en" ? "en" : "zh-CN",
+      ...init.headers,
+    };
     if (init.body !== undefined) headers["Content-Type"] = "application/json";
     if (unsafe) headers["X-CSRF-Token"] = await csrfToken(refresh);
     return fetch(BASE + path, {
@@ -102,5 +107,5 @@ export function eventsUrl(runId: string, after: number) {
 export function errorText(e: unknown): string {
   if (e instanceof ApiError) return e.body.message;
   if (e instanceof OfflineError) return e.message;
-  return "出现未知错误。";
+  return t("出现未知错误。", "Something went wrong.");
 }

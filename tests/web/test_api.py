@@ -104,3 +104,16 @@ def test_a_run_is_validated_queued_once_per_key_and_cancellable(client, monkeypa
 def test_artifacts_are_served_by_id_only(client):
     assert client.get("/api/v1/runs/nope/artifacts/x").status_code == 404
     assert client.get("/api/v1/runs/..%2F..%2Fetc/artifacts/passwd").status_code == 404
+
+
+@pytest.mark.unit
+def test_labels_and_errors_follow_the_requested_language(client):
+    def label(lang):
+        doc = client.get("/api/v1/settings", headers={"Accept-Language": lang}).json()
+        return next(f["label"] for f in doc["fields"] if f["key"] == "max_debate_rounds")
+
+    assert label("en-US,en;q=0.9") == "Bull/bear rounds"
+    assert label("zh-CN") == "多空研究轮数"
+    stale = client.patch("/api/v1/settings", json={"base_revision": 9, "config": {}},
+                         headers={"Accept-Language": "en"})
+    assert stale.status_code == 409 and "another tab" in stale.json()["error"]["message"]

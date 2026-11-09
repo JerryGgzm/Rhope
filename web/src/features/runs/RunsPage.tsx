@@ -5,19 +5,22 @@ import { PageHead } from "../../app/Shell";
 import { Button, Empty, RatingInline, Status } from "../../components/ui";
 import { errorText } from "../../lib/api/client";
 import { useRuns } from "../../lib/api/hooks";
+import { t, useLang } from "../../lib/i18n";
 import { formatStamp } from "../../lib/labels";
 
-const FILTERS = [
-  ["", "全部"],
-  ["running", "运行中"],
-  ["completed", "已完成"],
-  ["completed_with_warnings", "有警告"],
-  ["failed", "失败"],
-] as const;
+const filters = () =>
+  [
+    ["", t("全部", "All")],
+    ["running", t("运行中", "Running")],
+    ["completed", t("已完成", "Completed")],
+    ["completed_with_warnings", t("有警告", "With warnings")],
+    ["failed", t("失败", "Failed")],
+  ] as const;
 
 const PAGE = 25;
 
 export function RunsPage() {
+  useLang();
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>("");
   const [q, setQ] = useState("");
@@ -28,11 +31,14 @@ export function RunsPage() {
 
   return (
     <>
-      <PageHead title="历史" sub="每次运行独立保存，同一天重复分析也不会互相覆盖。" />
+      <PageHead
+        title={t("历史", "History")}
+        sub={t("每次运行独立保存，同一天重复分析也不会互相覆盖。", "Each run is kept separately; repeat analyses on the same day never overwrite each other.")}
+      />
 
       <div className="row-between" style={{ marginBottom: 20 }}>
-        <div className="pills" role="group" aria-label="按状态筛选">
-          {FILTERS.map(([k, l]) => (
+        <div className="pills" role="group" aria-label={t("按状态筛选", "Filter by status")}>
+          {filters().map(([k, l]) => (
             <button
               key={k}
               className="pill"
@@ -50,9 +56,9 @@ export function RunsPage() {
           <Search size={15} className="t3" style={{ position: "absolute", left: 12, top: 12 }} aria-hidden />
           <input
             className="input"
-            placeholder="代码"
+            placeholder={t("代码", "Symbol")}
             style={{ paddingLeft: 34, height: 38, borderRadius: 999 }}
-            aria-label="按代码筛选"
+            aria-label={t("按代码筛选", "Filter by symbol")}
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
@@ -63,17 +69,17 @@ export function RunsPage() {
       </div>
 
       {runs.isError ? (
-        <Empty title="无法读取运行历史">{errorText(runs.error)}</Empty>
+        <Empty title={t("无法读取运行历史", "Could not load run history")}>{errorText(runs.error)}</Empty>
       ) : runs.data && total === 0 && !q && !status ? (
         <Empty
-          title="还没有运行记录"
+          title={t("还没有运行记录", "No runs yet")}
           action={
             <Link to="/analysis" className="btn btn-solid btn-sm">
-              开始第一次分析
+              {t("开始第一次分析", "Start your first analysis")}
             </Link>
           }
         >
-          每次分析都会在这里留下独立的记录、报告和运行日志。
+          {t("每次分析都会在这里留下独立的记录、报告和运行日志。", "Every analysis leaves its own record, reports and log here.")}
         </Empty>
       ) : (
         <>
@@ -81,13 +87,13 @@ export function RunsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>代码</th>
-                  <th>分析日期</th>
-                  <th>开始</th>
-                  <th>状态</th>
-                  <th>最终评级</th>
-                  <th>模型</th>
-                  <th>持仓</th>
+                  <th>{t("代码", "Symbol")}</th>
+                  <th>{t("分析日期", "Date")}</th>
+                  <th>{t("开始", "Started")}</th>
+                  <th>{t("状态", "Status")}</th>
+                  <th>{t("最终评级", "Rating")}</th>
+                  <th>{t("模型", "Models")}</th>
+                  <th>{t("持仓", "Position")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,9 +124,9 @@ export function RunsPage() {
                     </td>
                     <td className="t2">
                       {!r.portfolio ? (
-                        <span className="t3">未提供</span>
+                        <span className="t3">{t("未提供", "None")}</span>
                       ) : r.portfolio.source === "flat" ? (
-                        "空仓"
+                        t("空仓", "Flat")
                       ) : (
                         `${r.portfolio.name ?? r.portfolio.id} v${r.portfolio.version}`
                       )}
@@ -129,18 +135,18 @@ export function RunsPage() {
                 ))}
               </tbody>
             </table>
-            {runs.data && rows.length === 0 && <p className="small t3" style={{ padding: "24px 0" }}>没有符合条件的运行。</p>}
-            {runs.isPending && <p className="small t3" style={{ padding: "24px 0" }}>读取中…</p>}
+            {runs.data && rows.length === 0 && <p className="small t3" style={{ padding: "24px 0" }}>{t("没有符合条件的运行。", "No matching runs.")}</p>}
+            {runs.isPending && <p className="small t3" style={{ padding: "24px 0" }}>{t("读取中…", "Loading…")}</p>}
           </div>
 
           <div className="row-between small t3" style={{ marginTop: 20 }}>
-            <span>{total} 条</span>
+            <span>{t(`${total} 条`, `${total} runs`)}</span>
             <div className="row">
               <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-                上一页
+                {t("上一页", "Previous")}
               </Button>
               <Button size="sm" variant="ghost" disabled={(page + 1) * PAGE >= total} onClick={() => setPage((p) => p + 1)}>
-                下一页
+                {t("下一页", "Next")}
               </Button>
             </div>
           </div>

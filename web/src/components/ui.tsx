@@ -10,6 +10,7 @@ import {
   type RunStatus,
   type TraderAction,
 } from "../lib/labels";
+import { t } from "../lib/i18n";
 
 /* ---------- Button ---------- */
 
@@ -316,7 +317,7 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode |
     <div className="stat">
       <span className="stat-label">{label}</span>
       <span className="stat-value" data-empty={empty}>
-        {empty ? "本次未提供" : value}
+        {empty ? t("本次未提供", "Not provided") : value}
       </span>
       {hint && <span className="stat-hint">{hint}</span>}
     </div>
@@ -335,7 +336,7 @@ export function Tabs<T extends string>({
   label: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const rect = useSlidingIndicator(ref, '[aria-selected="true"]', [value, tabs.length]);
+  const rect = useSlidingIndicator(ref, '[aria-selected="true"]', [value, tabs.map((x) => x.label).join()]);
   const onKey = (e: React.KeyboardEvent) => {
     const i = tabs.findIndex((t) => t.key === value);
     if (e.key === "ArrowRight") onChange(tabs[(i + 1) % tabs.length].key);
@@ -367,6 +368,6 @@ export function Tabs<T extends string>({
   );
 }
 
-export function DemoMark({ children = "演示" }: { children?: ReactNode }) {
+export function DemoMark({ children = t("演示", "Demo") }: { children?: ReactNode }) {
   return <span className="demo-mark">{children}</span>;
 }

@@ -7,9 +7,11 @@ import { Button, Empty, Notice, Switch } from "../../components/ui";
 import { ApiError, errorText } from "../../lib/api/client";
 import { useCapabilities, useHealth, useSaveCredentials, useSaveSettings, useSettings } from "../../lib/api/hooks";
 import type { Credential, SettingField, SettingsDoc } from "../../lib/api/types";
+import { t, useLang } from "../../lib/i18n";
 import { formatStamp } from "../../lib/labels";
 
-const SOURCE_LABEL = { web: "已保存", env: "来自环境 / .env", default: "内置默认" } as const;
+const sourceLabel = (s: SettingField["source"]) =>
+  s === "web" ? t("已保存", "Saved") : s === "env" ? t("来自环境 / .env", "From env / .env") : t("内置默认", "Built-in default");
 
 type Draft = Record<string, unknown>;
 
@@ -39,7 +41,7 @@ function Setting({
         {field.description && <span className="setting-desc">{field.description}</span>}
         <div className="setting-tags">
           <span className="tag tag-mono">{field.env && field.kind === "env" ? field.env : field.key}</span>
-          <span className="tag">{dirty ? "未保存" : SOURCE_LABEL[field.source]}</span>
+          <span className="tag">{dirty ? t("未保存", "Unsaved") : sourceLabel(field.source)}</span>
           {field.source === "env" && field.env && field.kind === "config" && <span className="tag tag-mono">{field.env}</span>}
           {inapplicable && <span className="tag">{inapplicable}</span>}
         </div>
@@ -54,7 +56,7 @@ function Setting({
         {field.source === "web" && onReset && !dirty && (
           <button className="text-link micro t2" style={{ alignSelf: "flex-start" }} onClick={onReset}>
             <RotateCcw size={11} style={{ verticalAlign: -1, marginRight: 4 }} />
-            恢复为{field.inherited == null ? "默认" : `继承值 ${display(field.inherited)}`}
+            {restoreText(field.inherited)}
           </button>
         )}
       </div>
@@ -63,22 +65,31 @@ function Setting({
 }
 
 function display(v: unknown): string {
-  if (v == null) return "未设置";
-  if (typeof v === "boolean") return v ? "开" : "关";
-  if (Array.isArray(v)) return `${v.length} 项`;
-  if (typeof v === "object") return `${Object.keys(v as object).length} 项`;
+  if (v == null) return t("未设置", "unset");
+  if (typeof v === "boolean") return v ? t("开", "on") : t("关", "off");
+  if (Array.isArray(v)) return t(`${v.length} 项`, `${v.length} items`);
+  if (typeof v === "object") return t(`${Object.keys(v as object).length} 项`, `${Object.keys(v as object).length} entries`);
   return String(v);
 }
 
+function restoreText(inherited: unknown, onSave = false): string {
+  const target = inherited == null ? t("默认", "the default") : t(`继承值 ${display(inherited)}`, `inherited value ${display(inherited)}`);
+  return onSave ? t(`保存后恢复为${target}`, `Reverts to ${target} on save`) : t(`恢复为${target}`, `Revert to ${target}`);
+}
+
 function Control({ field, value, onChange }: { field: SettingField; value: unknown; onChange: (v: unknown) => void }) {
-  const placeholder = field.nullable ? (field.inherited == null ? "留空使用默认" : `留空继承 ${display(field.inherited)}`) : undefined;
+  const placeholder = field.nullable
+    ? field.inherited == null
+      ? t("留空使用默认", "Empty uses the default")
+      : t(`留空继承 ${display(field.inherited)}`, `Empty inherits ${display(field.inherited)}`)
+    : undefined;
   switch (field.type) {
     case "boolean":
       return <Switch checked={Boolean(value)} onChange={onChange} label={field.label} />;
     case "enum":
       return (
         <select className="select" value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value || null)}>
-          {field.nullable && <option value="">{field.inherited == null ? "默认" : `继承 · ${display(field.inherited)}`}</option>}
+          {field.nullable && <option value="">{field.inherited == null ? t("默认", "Default") : `${t("继承", "Inherit")} · ${display(field.inherited)}`}</option>}
           {field.enum.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -107,7 +118,7 @@ function Control({ field, value, onChange }: { field: SettingField; value: unkno
           rows={Math.min(8, Math.max(3, ((value as string[]) ?? []).length + 1))}
           value={((value as string[]) ?? []).join("\n")}
           onChange={(e) => onChange(e.target.value.split("\n"))}
-          placeholder="每行一项"
+          placeholder={t("每行一项", "One per line")}
         />
       );
     case "map":
@@ -139,11 +150,11 @@ function MapEditor({
   const entries = Object.entries(value);
   return (
     <div className="chain">
-      {entries.length === 0 && <span className="small t3">没有条目</span>}
+      {entries.length === 0 && <span className="small t3">{t("没有条目", "No entries")}</span>}
       {entries.map(([k, v]) => (
         <div className="chain-item" key={k} style={{ gap: 10 }}>
           <span className="mono small" style={{ minWidth: 150 }}>
-            {k || "（默认）"}
+            {k || t("（默认）", "(default)")}
           </span>
           <input
             className="input input-bare mono small"
@@ -156,7 +167,7 @@ function MapEditor({
             <Button
               size="sm"
               variant="ghost"
-              aria-label={`移除 ${k}`}
+              aria-label={t(`移除 ${k}`, `Remove ${k}`)}
               icon={<X size={14} />}
               onClick={() => {
                 const next = { ...value };
@@ -171,7 +182,7 @@ function MapEditor({
         <div className="row" style={{ paddingTop: 8, flexWrap: "nowrap" }}>
           <input
             className="input input-bare mono small"
-            placeholder="新键，例如 get_news"
+            placeholder={t("新键，例如 get_news", "New key, e.g. get_news")}
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
             spellCheck={false}
@@ -186,7 +197,7 @@ function MapEditor({
               setNewKey("");
             }}
           >
-            添加
+            {t("添加", "Add")}
           </Button>
         </div>
       )}
@@ -212,8 +223,8 @@ function SecretRow({ cred }: { cred: Credential }) {
         <span className="setting-name">{cred.label}</span>
         <div className="setting-tags">
           <span className="tag tag-mono">{cred.name}</span>
-          <span className="tag">敏感</span>
-          {cred.optional && <span className="tag">可选</span>}
+          <span className="tag">{t("敏感", "Secret")}</span>
+          {cred.optional && <span className="tag">{t("可选", "Optional")}</span>}
         </div>
       </div>
       <div className="setting-control">
@@ -222,24 +233,24 @@ function SecretRow({ cred }: { cred: Credential }) {
           style={{ flexWrap: "nowrap" }}
           onSubmit={(e) => {
             e.preventDefault();
-            if (value.trim()) submit({ set: { [cred.name]: value } }, `${cred.name} 已保存`);
+            if (value.trim()) submit({ set: { [cred.name]: value } }, t(`${cred.name} 已保存`, `${cred.name} saved`));
           }}
         >
           <input
             className="input"
             type="password"
-            placeholder={cred.configured ? "••••••••  留空表示不修改" : "输入密钥"}
+            placeholder={cred.configured ? t("••••••••  留空表示不修改", "••••••••  leave empty to keep") : t("输入密钥", "Enter key")}
             autoComplete="new-password"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             aria-label={cred.name}
           />
           <Button size="sm" type="submit" disabled={!value.trim()} loading={save.isPending}>
-            保存
+            {t("保存", "Save")}
           </Button>
           {cred.source === "web" && (
-            <Button size="sm" variant="ghost" onClick={() => submit({ clear: [cred.name] }, `${cred.name} 已清除`)}>
-              清除
+            <Button size="sm" variant="ghost" onClick={() => submit({ clear: [cred.name] }, t(`${cred.name} 已清除`, `${cred.name} cleared`))}>
+              {t("清除", "Clear")}
             </Button>
           )}
         </form>
@@ -247,9 +258,9 @@ function SecretRow({ cred }: { cred: Credential }) {
           <span className="dot" data-tone={cred.configured ? "ok" : "hollow"} aria-hidden />
           {cred.configured
             ? cred.source === "web"
-              ? "已配置 · 保存在本机凭证文件"
-              : "已配置 · 来自环境 / .env（在此保存会优先使用）"
-            : "未配置"}
+              ? t("已配置 · 保存在本机凭证文件", "Configured · in the local credentials file")
+              : t("已配置 · 来自环境 / .env（在此保存会优先使用）", "Configured · from env / .env (a key saved here takes precedence)")
+            : t("未配置", "Not configured")}
         </span>
       </div>
     </div>
@@ -257,8 +268,9 @@ function SecretRow({ cred }: { cred: Credential }) {
 }
 
 export function SettingsPage() {
+  useLang();
   const settings = useSettings();
-  if (settings.isError) return <Empty title="无法读取设置">{errorText(settings.error)}</Empty>;
+  if (settings.isError) return <Empty title={t("无法读取设置", "Could not load settings")}>{errorText(settings.error)}</Empty>;
   if (!settings.data) return <div className="skeleton" style={{ height: 320 }} aria-busy />;
   return <SettingsView doc={settings.data} refetch={() => settings.refetch()} />;
 }
@@ -268,7 +280,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
   const health = useHealth();
   const caps = useCapabilities();
   const save = useSaveSettings();
-  const groups = [...doc.groups, { id: "about", label: "关于" }];
+  const groups = [...doc.groups, { id: "about", label: t("关于", "About") }];
   const [group, setGroup] = useState(groups[0].id);
   const [draft, setDraft] = useState<Draft>({});
   const [resets, setResets] = useState<Set<string>>(new Set());
@@ -318,7 +330,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
         onSuccess: (next) => {
           setDraft({});
           setResets(new Set());
-          toast(`已保存为 revision ${next.revision}，用于新任务`);
+          toast(t(`已保存为 revision ${next.revision}，用于新任务`, `Saved as revision ${next.revision} for new runs`));
         },
       },
     );
@@ -332,29 +344,30 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
   return (
     <>
       <PageHead
-        title="设置"
+        title={t("设置", "Settings")}
         sub={
           <>
             revision {doc.revision}
-            {doc.saved_at ? ` · 保存于 ${formatStamp(doc.saved_at)}` : " · 尚未保存过"} · 保存后用于新任务，正在运行的任务不受影响
+            {doc.saved_at ? ` · ${t("保存于", "saved")} ${formatStamp(doc.saved_at)}` : t(" · 尚未保存过", " · never saved")} ·{" "}
+            {t("保存后用于新任务，正在运行的任务不受影响", "applies to new runs; running ones are unaffected")}
           </>
         }
         actions={
           <>
             {dirtyCount > 0 && (
               <Button size="sm" variant="ghost" onClick={discard}>
-                放弃修改
+                {t("放弃修改", "Discard changes")}
               </Button>
             )}
             <Button variant="solid" size="sm" loading={save.isPending} disabled={dirtyCount === 0} onClick={submit}>
-              保存{dirtyCount ? ` ${dirtyCount} 项` : ""}
+              {dirtyCount ? t(`保存 ${dirtyCount} 项`, `Save ${dirtyCount}`) : t("保存", "Save")}
             </Button>
           </>
         }
       />
 
       <div className="settings">
-        <nav className="settings-nav" aria-label="设置分组">
+        <nav className="settings-nav" aria-label={t("设置分组", "Settings groups")}>
           {groups.map((g) => (
             <button key={g.id} aria-current={g.id === group ? "true" : undefined} onClick={() => setGroup(g.id)}>
               {g.label}
@@ -366,7 +379,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
           {serverError?.body.code === "SETTINGS_REVISION_STALE" && (
             <Notice
               kind="warn"
-              title="设置已在其他地方更新。"
+              title={t("设置已在其他地方更新。", "Settings were updated elsewhere.")}
               actions={
                 <Button
                   size="sm"
@@ -375,16 +388,16 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                     refetch();
                   }}
                 >
-                  载入最新
+                  {t("载入最新", "Load latest")}
                 </Button>
               }
             >
-              你的修改尚未保存；载入最新版本后可再次修改。
+              {t("你的修改尚未保存；载入最新版本后可再次修改。", "Your changes were not saved; load the latest version and change it again.")}
             </Notice>
           )}
           {serverError && serverError.body.code !== "SETTINGS_REVISION_STALE" && (
             <Notice kind="error" title={serverError.body.message}>
-              {serverError.body.field_errors.map((e) => `${e.key}：${e.message}`).join("；")}
+              {serverError.body.field_errors.map((e) => `${e.key}: ${e.message}`).join(t("；", "; "))}
             </Notice>
           )}
 
@@ -393,14 +406,24 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
               <dl className="kv">
                 <dt>TradingAgents</dt>
                 <dd className="mono">{health.data?.version ?? caps.data?.version ?? "—"}</dd>
-                <dt>本地存储</dt>
-                <dd>{health.data?.storage === "ok" ? "正常" : (health.data?.storage ?? "—")}</dd>
-                <dt>设置版本</dt>
+                <dt>{t("本地存储", "Local storage")}</dt>
+                <dd>{health.data?.storage === "ok" ? t("正常", "OK") : (health.data?.storage ?? "—")}</dd>
+                <dt>{t("设置版本", "Settings")}</dt>
                 <dd>revision {doc.revision}</dd>
-                <dt>访问范围</dt>
-                <dd>仅本机（127.0.0.1）。分析会调用你配置的外部模型与数据服务。</dd>
-                <dt>密钥存放</dt>
-                <dd>本机凭证文件（权限 0600），不会返回浏览器、写入报告或日志。</dd>
+                <dt>{t("访问范围", "Access")}</dt>
+                <dd>
+                  {t(
+                    "仅本机（127.0.0.1）。分析会调用你配置的外部模型与数据服务。",
+                    "This machine only (127.0.0.1). Analyses call the model and data services you configure.",
+                  )}
+                </dd>
+                <dt>{t("密钥存放", "Keys")}</dt>
+                <dd>
+                  {t(
+                    "本机凭证文件（权限 0600），不会返回浏览器、写入报告或日志。",
+                    "A local credentials file (mode 0600); never sent to the browser or written to reports or logs.",
+                  )}
+                </dd>
               </dl>
             </section>
           ) : (
@@ -409,7 +432,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                 {fields.map((f) => {
                   const id = fieldId(f);
                   const inapplicable =
-                    f.providers.length && !f.providers.some((p) => inUse.has(p)) ? `仅 ${f.providers.join(" / ")}` : undefined;
+                    f.providers.length && !f.providers.some((p) => inUse.has(p)) ? t(`仅 ${f.providers.join(" / ")}`, `${f.providers.join(" / ")} only`) : undefined;
                   return (
                     <Setting
                       key={id}
@@ -421,7 +444,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                     >
                       {resets.has(id) ? (
                         <span className="small t2">
-                          保存后恢复为{f.inherited == null ? "默认" : `继承值 ${display(f.inherited)}`}{" "}
+                          {restoreText(f.inherited, true)}{" "}
                           <button
                             className="text-link"
                             onClick={() =>
@@ -432,7 +455,7 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                               })
                             }
                           >
-                            撤销
+                            {t("撤销", "Undo")}
                           </button>
                         </span>
                       ) : (
@@ -448,14 +471,16 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                   <section>
                     <div className="row-between" style={{ marginBottom: 4 }}>
                       <h2 className="section-title">API Key</h2>
-                      <span className="small t3">只显示是否已配置，不回传密钥；保存立即生效于新任务</span>
+                      <span className="small t3">
+                        {t("只显示是否已配置，不回传密钥；保存立即生效于新任务", "Shows only whether a key is set, never the key; saving applies to new runs at once")}
+                      </span>
                     </div>
-                    {activeCreds.length === 0 && <p className="small t3">当前 provider 不需要 API Key。</p>}
+                    {activeCreds.length === 0 && <p className="small t3">{t("当前 provider 不需要 API Key。", "The current provider needs no API key.")}</p>}
                     {activeCreds.map((c) => (
                       <SecretRow key={c.name} cred={c} />
                     ))}
                     {otherCreds.length > 0 && (
-                      <Disclosure title="其他 provider" meta={<span className="small t3">{otherCreds.length} 项</span>}>
+                      <Disclosure title={t("其他 provider", "Other providers")} meta={<span className="small t3">{otherCreds.length}</span>}>
                         {otherCreds.map((c) => (
                           <SecretRow key={c.name} cred={c} />
                         ))}
@@ -468,11 +493,15 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
                     )}
                   </section>
                   <section className="stack">
-                    <h2 className="section-title">ChatGPT 订阅</h2>
+                    <h2 className="section-title">{t("ChatGPT 订阅", "ChatGPT subscription")}</h2>
                     <p className="small t2" style={{ maxWidth: 560 }}>
-                      使用 ChatGPT 订阅代替 API Key。网页登录流程尚未接入；目前可在终端运行{" "}
-                      <span className="mono">tradingagents login chatgpt</span> 登录，之后选择 provider{" "}
-                      <span className="mono">chatgpt</span> 即可在这里运行。
+                      {t(
+                        "使用 ChatGPT 订阅代替 API Key。网页登录流程尚未接入；目前可在终端运行",
+                        "Use a ChatGPT subscription instead of an API key. Web sign-in isn't connected yet; for now run",
+                      )}{" "}
+                      <span className="mono">tradingagents login chatgpt</span>{" "}
+                      {t("登录，之后选择 provider", "in a terminal, then choose the provider")}{" "}
+                      <span className="mono">chatgpt</span> {t("即可在这里运行。", "to run here.")}
                     </p>
                   </section>
                 </>
@@ -481,8 +510,10 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
               {group === "data" && (
                 <section>
                   <div className="row-between" style={{ marginBottom: 4 }}>
-                    <h2 className="section-title">数据源密钥</h2>
-                    <span className="small t3">可选；缺少时对应数据会缺失，并在运行记录中标出</span>
+                    <h2 className="section-title">{t("数据源密钥", "Data source keys")}</h2>
+                    <span className="small t3">
+                      {t("可选；缺少时对应数据会缺失，并在运行记录中标出", "Optional; without one that data is missing and flagged in the run log")}
+                    </span>
                   </div>
                   {doc.credentials
                     .filter((c) => c.group === "data")
@@ -497,14 +528,14 @@ function SettingsView({ doc, refetch }: { doc: SettingsDoc; refetch: () => void 
       </div>
 
       {dirtyCount > 0 && (
-        <div className="savebar" role="region" aria-label="未保存的修改">
-          <span className="small t2">{dirtyCount} 项未保存</span>
+        <div className="savebar" role="region" aria-label={t("未保存的修改", "Unsaved changes")}>
+          <span className="small t2">{t(`${dirtyCount} 项未保存`, `${dirtyCount} unsaved`)}</span>
           <div className="row" style={{ gap: 8 }}>
             <Button size="sm" variant="ghost" onClick={discard}>
-              放弃
+              {t("放弃", "Discard")}
             </Button>
             <Button variant="solid" size="sm" loading={save.isPending} onClick={submit}>
-              保存
+              {t("保存", "Save")}
             </Button>
           </div>
         </div>
