@@ -1,15 +1,6 @@
-import {
-  AlertCircle,
-  AlertTriangle,
-  Check,
-  CheckCircle2,
-  Info,
-  Minus,
-  TrendingDown,
-  TrendingUp,
-  HelpCircle,
-} from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { AlertCircle, AlertTriangle, ArrowDownRight, ArrowUpRight, Check, Info, Loader2, Minus, CircleHelp } from "lucide-react";
+import { forwardRef, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useSlidingIndicator } from "../lib/motion";
 import {
   RATING_LABEL,
   RUN_STATUS,
@@ -20,114 +11,161 @@ import {
   type TraderAction,
 } from "../lib/labels";
 
-export function StatusBadge({ status }: { status: RunStatus }) {
+/* ---------- Button ---------- */
+
+type BtnVariant = "solid" | "outline" | "ghost" | "danger";
+type BtnSize = "sm" | "md" | "lg";
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: BtnVariant;
+  size?: BtnSize;
+  loading?: boolean;
+  icon?: ReactNode;
+  block?: boolean;
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "outline", size = "md", loading, icon, block, className = "", children, ...rest },
+  ref,
+) {
+  const cls = [
+    "btn",
+    variant === "solid" && "btn-solid",
+    variant === "ghost" && "btn-ghost",
+    variant === "danger" && "btn-danger",
+    size === "sm" && "btn-sm",
+    size === "lg" && "btn-lg",
+    block && "btn-block",
+    !children && "btn-icon",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cls}
+      data-loading={loading || undefined}
+      aria-busy={loading || undefined}
+      {...rest}
+    >
+      <span className="btn-label row" style={{ gap: 6, flexWrap: "nowrap" }}>
+        {icon}
+        {children}
+      </span>
+      {loading && (
+        <span className="btn-spinner" aria-hidden>
+          <Loader2 size={16} className="spin" />
+        </span>
+      )}
+    </button>
+  );
+});
+
+/* ---------- Status ---------- */
+
+export function Status({ status }: { status: RunStatus }) {
   const s = RUN_STATUS[status];
   return (
-    <span className={`badge ${s.badge}`}>
-      <span className={`status-dot${s.live ? " live" : ""}`} aria-hidden />
+    <span className="status">
+      <span className="dot" data-tone={s.tone} aria-hidden />
       {s.label}
     </span>
   );
 }
 
-const TONE_ICON = {
-  pos: TrendingUp,
-  neg: TrendingDown,
-  neutral: Minus,
-  review: HelpCircle,
-};
+/* ---------- Ratings (monochrome: word + shape, never color alone) ---------- */
 
-export function RatingBlock({ rating, source }: { rating: Rating; source: string }) {
-  const tone = ratingTone(rating);
-  const Icon = TONE_ICON[tone];
+function RatingGlyph({ r, size }: { r: Rating | TraderAction; size: number }) {
+  const tone = ratingTone(r);
+  if (tone === "pos") return <ArrowUpRight size={size} aria-hidden />;
+  if (tone === "neg") return <ArrowDownRight size={size} aria-hidden />;
+  if (tone === "review") return <CircleHelp size={size} aria-hidden />;
+  return <Minus size={size} aria-hidden />;
+}
+
+export function RatingInline({ rating }: { rating: Rating | null | undefined }) {
+  if (!rating) return <span className="t3">—</span>;
   return (
-    <div className="rating" data-tone={tone}>
-      <span className="rating-icon" aria-hidden>
-        <Icon size={18} />
+    <span className="rating-inline" data-review={rating === "REVIEW"}>
+      <RatingGlyph r={rating} size={14} />
+      {RATING_LABEL[rating]}
+      <span className="en">{rating}</span>
+    </span>
+  );
+}
+
+export function ActionInline({ action }: { action: TraderAction }) {
+  return (
+    <span className="rating-inline">
+      <RatingGlyph r={action} size={14} />
+      {TRADER_ACTION_LABEL[action]}
+      <span className="en">{action}</span>
+    </span>
+  );
+}
+
+export function RatingHero({ rating, source }: { rating: Rating; source: string }) {
+  return (
+    <div className="rating-hero" data-review={rating === "REVIEW"}>
+      <span className="glyph">
+        <RatingGlyph r={rating} size={22} />
       </span>
-      <span className="rating-text">
-        <strong>
-          {RATING_LABEL[rating]} <span className="muted" style={{ fontSize: 15, fontWeight: 500 }}>· {rating}</span>
-        </strong>
-        <span>{source}</span>
-      </span>
+      <div className="stack-sm" style={{ gap: 6 }}>
+        <span className="word">
+          {RATING_LABEL[rating]}
+          <span className="en">{rating}</span>
+        </span>
+        <span className="small t2">{source}</span>
+      </div>
     </div>
   );
 }
 
-export function RatingBadge({ rating }: { rating: Rating | null | undefined }) {
-  if (!rating) return <span className="faint">—</span>;
-  const tone = ratingTone(rating);
-  const cls = { pos: "badge-pos", neg: "badge-neg", neutral: "badge-blue", review: "badge-warn" }[tone];
-  const Icon = TONE_ICON[tone];
-  return (
-    <span className={`badge ${cls}`}>
-      <Icon size={12} aria-hidden />
-      {RATING_LABEL[rating]} · {rating}
-    </span>
-  );
-}
+/* ---------- Notice ---------- */
 
-export function ActionBadge({ action }: { action: TraderAction }) {
-  const tone = ratingTone(action);
-  const cls = { pos: "badge-pos", neg: "badge-neg", neutral: "badge-blue", review: "badge-warn" }[tone];
-  return (
-    <span className={`badge ${cls}`}>
-      {TRADER_ACTION_LABEL[action]} · {action}
-    </span>
-  );
-}
+type NoticeKind = "info" | "warn" | "error" | "ok";
+const NOTICE_ICON = { info: Info, warn: AlertTriangle, error: AlertCircle, ok: Check };
 
-type BannerKind = "info" | "warn" | "error" | "ok";
-const BANNER_ICON = { info: Info, warn: AlertTriangle, error: AlertCircle, ok: CheckCircle2 };
-
-export function Banner({
-  kind,
+export function Notice({
+  kind = "info",
   title,
   children,
   actions,
 }: {
-  kind: BannerKind;
+  kind?: NoticeKind;
   title?: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
 }) {
-  const Icon = BANNER_ICON[kind];
+  const Icon = NOTICE_ICON[kind];
   return (
-    <div className={`banner banner-${kind}`} role={kind === "error" ? "alert" : "status"}>
-      <Icon size={17} aria-hidden />
-      <div className="banner-body">
+    <div className="notice" data-kind={kind} role={kind === "error" ? "alert" : "status"}>
+      <Icon size={16} className="notice-icon" aria-hidden />
+      <div className="notice-body">
         {title && <strong>{title}</strong>}
         {title && children ? " " : null}
-        {children}
+        {children && <span className={title ? "t2" : undefined}>{children}</span>}
       </div>
-      {actions && <div className="banner-actions">{actions}</div>}
+      {actions && <div className="notice-actions">{actions}</div>}
     </div>
   );
 }
 
-export function EmptyState({
-  icon,
-  title,
-  children,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  children?: ReactNode;
-  action?: ReactNode;
-}) {
+/* ---------- Empty ---------- */
+
+export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
-      <div className="empty-icon" aria-hidden>
-        {icon}
-      </div>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
-      {action}
+      {action && <div style={{ marginTop: 8 }}>{action}</div>}
     </div>
   );
 }
+
+/* ---------- Form ---------- */
 
 export function Field({
   label,
@@ -148,7 +186,7 @@ export function Field({
     <div className="field">
       <label className="field-label" htmlFor={htmlFor}>
         <span>{label}</span>
-        {machineKey && <span className="key">{machineKey}</span>}
+        {machineKey && <span className="field-key">{machineKey}</span>}
       </label>
       {children}
       {error ? (
@@ -174,15 +212,13 @@ export function Segmented<T extends string | number>({
   onChange: (v: T) => void;
   label: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const rect = useSlidingIndicator(ref, 'button[aria-pressed="true"]', [value, options.length]);
   return (
-    <div className="seg" role="group" aria-label={label}>
+    <div className="seg" role="group" aria-label={label} ref={ref}>
+      {rect && <span className="seg-thumb" style={{ width: rect.w, transform: `translateX(${rect.x}px)` }} aria-hidden />}
       {options.map((o) => (
-        <button
-          type="button"
-          key={String(o.value)}
-          aria-pressed={o.value === value}
-          onClick={() => onChange(o.value)}
-        >
+        <button type="button" key={String(o.value)} aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
           {o.label}
         </button>
       ))}
@@ -229,9 +265,11 @@ export function ToggleRow({
 }) {
   const id = useId();
   return (
-    <div className="stack-sm" style={{ gap: 4 }}>
+    <div className="stack-sm" style={{ gap: 2 }}>
       <div className="toggle-row">
-        <span id={id}>{label}</span>
+        <span id={id} style={{ opacity: disabled ? 0.45 : 1 }}>
+          {label}
+        </span>
         <Switch checked={checked} onChange={onChange} label={label} disabled={disabled} />
       </div>
       {hint && <div className="field-hint">{hint}</div>}
@@ -239,7 +277,7 @@ export function ToggleRow({
   );
 }
 
-export function ChoiceChip({
+export function Pill({
   checked,
   disabled,
   onToggle,
@@ -256,27 +294,31 @@ export function ChoiceChip({
     <button
       type="button"
       role="checkbox"
-      className="chip"
+      className="pill"
       aria-checked={checked}
       aria-disabled={disabled}
       title={title}
       onClick={() => !disabled && onToggle()}
     >
-      <span className="check" aria-hidden>
-        {checked && <Check size={11} strokeWidth={3} />}
+      <span className="pill-check" aria-hidden>
+        <Check size={13} strokeWidth={2.5} />
       </span>
       {children}
     </button>
   );
 }
 
-export function Metric({ label, value, hint }: { label: string; value: ReactNode | null; hint?: string }) {
+/* ---------- Data ---------- */
+
+export function Stat({ label, value, hint }: { label: string; value: ReactNode | null; hint?: string }) {
   const empty = value == null || value === "";
   return (
-    <div className="metric">
-      <span className="label">{label}</span>
-      <span className={`value${empty ? " is-empty" : ""}`}>{empty ? "本次未提供" : value}</span>
-      {hint && <span className="aux">{hint}</span>}
+    <div className="stat">
+      <span className="stat-label">{label}</span>
+      <span className="stat-value" data-empty={empty}>
+        {empty ? "本次未提供" : value}
+      </span>
+      {hint && <span className="stat-hint">{hint}</span>}
     </div>
   );
 }
@@ -292,20 +334,39 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
   label: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const rect = useSlidingIndicator(ref, '[aria-selected="true"]', [value, tabs.length]);
+  const onKey = (e: React.KeyboardEvent) => {
+    const i = tabs.findIndex((t) => t.key === value);
+    if (e.key === "ArrowRight") onChange(tabs[(i + 1) % tabs.length].key);
+    if (e.key === "ArrowLeft") onChange(tabs[(i - 1 + tabs.length) % tabs.length].key);
+  };
   return (
-    <div className="tabs" role="tablist" aria-label={label}>
+    <div className="tabs" role="tablist" aria-label={label} ref={ref} onKeyDown={onKey}>
       {tabs.map((t) => (
         <button
           key={t.key}
           role="tab"
           className="tab"
           aria-selected={t.key === value}
+          tabIndex={t.key === value ? 0 : -1}
           onClick={() => onChange(t.key)}
         >
           {t.label}
           {t.count != null && <span className="count">{t.count}</span>}
         </button>
       ))}
+      {rect && (
+        <span
+          className="tab-indicator"
+          style={{ width: rect.w - 20, transform: `translateX(${rect.x + 10}px)` }}
+          aria-hidden
+        />
+      )}
     </div>
   );
+}
+
+export function DemoMark({ children = "演示" }: { children?: ReactNode }) {
+  return <span className="demo-mark">{children}</span>;
 }

@@ -1,43 +1,38 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #080d13;
-  --surface-read: #101821;
-  --surface-glass: rgba(22, 34, 46, 0.72);
-  --surface-glass-solid: #16222e;
-  --surface-raised: #182532;
-  --surface-sunken: #0c131b;
-  --border: rgba(210, 230, 245, 0.1);
-  --border-strong: rgba(210, 230, 245, 0.18);
+  /* Monochrome scale — dark ("lights out") */
+  --bg: #000000;
+  --bg-elevated: #0d0d0d;
+  --bg-overlay: rgba(16, 16, 16, 0.86);
+  --fill-1: rgba(255, 255, 255, 0.04);
+  --fill-2: rgba(255, 255, 255, 0.07);
+  --fill-3: rgba(255, 255, 255, 0.11);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
 
-  /* Text */
-  --text: #eaf0f6;
-  --text-2: #a7b5c6;
-  --text-3: #7d8b9c;
+  --text: #e7e9ea;
+  --text-2: #8b9096;
+  --text-3: #5d6166;
+  --text-inverse: #000000;
 
-  /* Accents */
-  --accent: #7dddd3;
-  --accent-ink: #062320;
-  --accent-soft: rgba(125, 221, 211, 0.12);
-  --accent-glow: rgba(125, 221, 211, 0.22);
-  --accent-2: #91acdf;
-  --accent-2-soft: rgba(145, 172, 223, 0.12);
+  --solid: #eff3f4;
+  --solid-hover: #d7dbdc;
 
-  /* Semantics (always paired with text or an icon) */
-  --pos: #70d6a6;
-  --pos-soft: rgba(112, 214, 166, 0.12);
-  --neg: #f18b96;
-  --neg-soft: rgba(241, 139, 150, 0.12);
-  --warn: #e8bd75;
-  --warn-soft: rgba(232, 189, 117, 0.12);
+  /* The only two hues, used for text and icons, never as surfaces */
+  --danger: #f4212e;
+  --caution: #e5a50a;
+
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 32px -8px rgba(0, 0, 0, 0.7);
 
   /* Shape */
-  --r-input: 10px;
-  --r-panel: 16px;
-  --r-drawer: 20px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
 
-  /* Spacing */
+  /* Spacing (4px base) */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
@@ -45,40 +40,68 @@
   --s5: 24px;
   --s6: 32px;
   --s7: 48px;
+  --s8: 64px;
 
   /* Type */
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
-    "Noto Sans SC", system-ui, sans-serif;
-  --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-  --fs-title: 30px;
-  --fs-h2: 20px;
-  --fs-h3: 16px;
+  --font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --fs-display: 44px;
+  --fs-title: 32px;
+  --fs-h2: 22px;
+  --fs-h3: 17px;
   --fs-body: 15px;
-  --fs-control: 14px;
-  --fs-aux: 12.5px;
+  --fs-ui: 14px;
+  --fs-small: 13px;
+  --fs-micro: 12px;
 
   /* Motion */
-  --t-hover: 140ms;
-  --t-panel: 210ms;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --d-fast: 120ms;
+  --d-base: 180ms;
+  --d-slow: 280ms;
 
   /* Layout */
-  --sidebar-w: 216px;
-  --sidebar-w-collapsed: 68px;
-  --topbar-h: 64px;
-  --params-w: 320px;
-  --blur: 20px;
+  --header-h: 56px;
+  --content-max: 1240px;
+  --reading-max: 720px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-elevated: #ffffff;
+    --bg-overlay: rgba(255, 255, 255, 0.88);
+    --fill-1: rgba(15, 20, 25, 0.03);
+    --fill-2: rgba(15, 20, 25, 0.06);
+    --fill-3: rgba(15, 20, 25, 0.1);
+    --line: rgba(15, 20, 25, 0.08);
+    --line-strong: rgba(15, 20, 25, 0.16);
+
+    --text: #0f1419;
+    --text-2: #536471;
+    --text-3: #8b98a5;
+    --text-inverse: #ffffff;
+
+    --solid: #0f1419;
+    --solid-hover: #272c30;
+
+    --danger: #d4111e;
+    --caution: #a86a00;
+
+    --scrim: rgba(0, 0, 0, 0.32);
+    --shadow-pop: 0 0 0 1px var(--line), 0 12px 32px -10px rgba(15, 20, 25, 0.22);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --t-hover: 0ms;
-    --t-panel: 0ms;
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root {
-    --surface-glass: var(--surface-glass-solid);
+    --d-fast: 0ms;
+    --d-base: 0ms;
+    --d-slow: 0ms;
   }
 }

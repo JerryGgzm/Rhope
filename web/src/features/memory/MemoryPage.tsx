@@ -1,81 +1,103 @@
-import { Download, RefreshCw } from "lucide-react";
-import { Topbar } from "../../app/Shell";
-import { Banner, RatingBadge } from "../../components/ui";
+import { useState } from "react";
+import { PageHead } from "../../app/Shell";
+import { useToast } from "../../components/Toast";
+import { Button, DemoMark, RatingInline } from "../../components/ui";
 import { formatPct } from "../../lib/labels";
 import { demoMemory } from "../../demo/fixtures";
 
+const FILTERS = [
+  ["all", "全部"],
+  ["pending", "待结算"],
+  ["resolved", "已结算"],
+] as const;
+
 export function MemoryPage() {
+  const toast = useToast();
+  const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
+  const [settling, setSettling] = useState(false);
+  const rows = demoMemory.filter((m) => filter === "all" || m.status === filter);
+
   return (
     <>
-      <Topbar
-        title="决策复盘"
+      <PageHead
+        title="复盘"
+        sub="历史建议在持有窗口结束后结算，并生成复盘文本。回测日志与此分开存放。"
         actions={
           <>
-            <button className="btn btn-sm">
-              <Download size={15} /> 下载日志
-            </button>
-            <button className="btn btn-primary btn-sm">
-              <RefreshCw size={15} /> 更新已到期结果
-            </button>
+            <Button size="sm" variant="ghost">
+              下载日志
+            </Button>
+            <Button
+              size="sm"
+              variant="solid"
+              loading={settling}
+              onClick={() => {
+                setSettling(true);
+                window.setTimeout(() => {
+                  setSettling(false);
+                  toast("结算任务已加入队列（演示）");
+                }, 800);
+              }}
+            >
+              更新已到期结果
+            </Button>
           </>
         }
       />
-      <div className="page">
-        <Banner kind="info">
-          “更新已到期结果”会作为后台任务运行，可能调用行情数据和模型生成复盘。未满足持有窗口的条目会继续显示为待结算。回测日志与日常记忆分开存放。
-        </Banner>
-        <div className="row">
-          <select className="select" style={{ width: 150 }} aria-label="按状态筛选">
-            <option>全部</option>
-            <option>待结算</option>
-            <option>已结算</option>
-          </select>
-          <input className="input" placeholder="按代码筛选" style={{ width: 200 }} aria-label="按代码筛选" />
-          <span className="demo-tag" style={{ marginLeft: "auto" }}>
-            演示数据
-          </span>
+
+      <div className="row-between" style={{ marginBottom: 20 }}>
+        <div className="pills" role="group" aria-label="按状态筛选">
+          {FILTERS.map(([k, l]) => (
+            <button key={k} className="pill" aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {l}
+            </button>
+          ))}
         </div>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th className="sticky-col">代码</th>
-                <th>决策日期</th>
-                <th>原始评级</th>
-                <th>状态</th>
-                <th className="num">原始收益</th>
-                <th className="num">alpha</th>
-                <th className="num">持有天数</th>
-                <th>结算日期</th>
-              </tr>
-            </thead>
-            <tbody>
-              {demoMemory.map((m, i) => (
-                <tr key={i} className="row-link" tabIndex={0}>
-                  <td className="sticky-col mono">
-                    <strong>{m.ticker}</strong>
-                  </td>
-                  <td className="num">{m.date}</td>
-                  <td>
-                    <RatingBadge rating={m.rating} />
-                  </td>
-                  <td>
-                    {m.status === "pending" ? (
-                      <span className="badge badge-blue">待结算</span>
-                    ) : (
-                      <span className="badge badge-pos">已结算</span>
-                    )}
-                  </td>
-                  <td className="num">{formatPct(m.raw)}</td>
-                  <td className="num">{formatPct(m.alpha)}</td>
-                  <td className="num">{m.holding ?? "—"}</td>
-                  <td className="num muted">{m.resolved ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DemoMark />
       </div>
+
+      <div className="table-scroll">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>代码</th>
+              <th>决策日期</th>
+              <th>原始评级</th>
+              <th>状态</th>
+              <th className="num">原始收益</th>
+              <th className="num">alpha</th>
+              <th className="num">持有天数</th>
+              <th>结算日期</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m, i) => (
+              <tr key={i} className="clickable" tabIndex={0}>
+                <td className="mono" style={{ fontWeight: 500 }}>
+                  {m.ticker}
+                </td>
+                <td className="num">{m.date}</td>
+                <td>
+                  <RatingInline rating={m.rating} />
+                </td>
+                <td>
+                  <span className="status">
+                    <span className="dot" data-tone={m.status === "pending" ? "hollow" : "ok"} aria-hidden />
+                    {m.status === "pending" ? "待结算" : "已结算"}
+                  </span>
+                </td>
+                <td className="num">{formatPct(m.raw)}</td>
+                <td className="num">{formatPct(m.alpha)}</td>
+                <td className="num">{m.holding ?? "—"}</td>
+                <td className="num t2">{m.resolved ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="small t3" style={{ marginTop: 20 }}>
+        结算可能调用行情数据与模型。未满足持有窗口的条目继续显示为待结算，不会补零。
+      </p>
     </>
   );
 }

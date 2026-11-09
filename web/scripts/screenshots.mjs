@@ -18,8 +18,16 @@ const shots = [
     h: 900,
     run: async (p) => {
       await p.type("#ticker", "BTC-USD");
-      await clickText(p, "button", "选快照");
+      await clickText(p, "button", "快照");
     },
+  },
+  {
+    name: "02b-analysis-light",
+    path: "/analysis",
+    w: 1440,
+    h: 900,
+    light: true,
+    run: (p) => p.type("#ticker", "0700.HK"),
   },
   { name: "03-run-running", path: "/runs/demo-running", w: 1440, h: 900 },
   { name: "04-run-completed", path: "/runs/demo-completed", w: 1440, h: 900, full: true },
@@ -44,8 +52,20 @@ const shots = [
     path: "/runs/demo-completed",
     w: 1440,
     h: 900,
-    run: (p) => clickText(p, "button", "诊断"),
+    run: async (p) => {
+      await p.click('[aria-label="更多操作"]');
+      await new Promise((r) => setTimeout(r, 250));
+      await clickText(p, ".menu-item", "诊断");
+    },
   },
+  {
+    name: "08b-export-menu",
+    path: "/runs/demo-completed",
+    w: 1440,
+    h: 900,
+    run: (p) => clickText(p, "button", "导出"),
+  },
+  { name: "04b-run-completed-light", path: "/runs/demo-completed", w: 1440, h: 900, full: true, light: true },
   { name: "09-runs", path: "/runs", w: 1440, h: 900 },
   { name: "10-portfolio", path: "/portfolio", w: 1440, h: 900 },
   { name: "11-backtests", path: "/backtests", w: 1440, h: 900, full: true },
@@ -53,6 +73,14 @@ const shots = [
   { name: "13-settings", path: "/settings", w: 1440, h: 900, full: true },
   { name: "14-run-completed-390", path: "/runs/demo-completed", w: 390, h: 844, full: true, mobile: true },
   { name: "15-analysis-390", path: "/analysis", w: 390, h: 844, mobile: true },
+  {
+    name: "15b-nav-menu-390",
+    path: "/analysis",
+    w: 390,
+    h: 844,
+    mobile: true,
+    run: (p) => p.click('[aria-label="打开导航"]'),
+  },
   { name: "16-analysis-1280", path: "/analysis", w: 1280, h: 800 },
   { name: "17-run-1920", path: "/runs/demo-completed", w: 1920, h: 1080 },
   { name: "18-portfolio-768", path: "/portfolio", w: 768, h: 1024 },
@@ -78,6 +106,7 @@ try {
     if (only && !only.some((o) => s.name.includes(o))) continue;
     const page = await browser.newPage();
     await page.setViewport({ width: s.w, height: s.h, deviceScaleFactor: 1, isMobile: !!s.mobile, hasTouch: !!s.mobile });
+    await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: s.light ? "light" : "dark" }]);
     await page.goto(base + s.path, { waitUntil: "networkidle0" });
     await page.evaluate(() => document.fonts.ready);
     if (s.run) await s.run(page);

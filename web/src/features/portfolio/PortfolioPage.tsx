@@ -1,188 +1,207 @@
-import { Download, LineChart, Plus, Save, Trash2, Upload } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Topbar } from "../../app/Shell";
-import { Banner, Field } from "../../components/ui";
+import { PageHead } from "../../app/Shell";
+import { Menu } from "../../components/Menu";
+import { useToast } from "../../components/Toast";
+import { Button, DemoMark, Field, Notice } from "../../components/ui";
 import { demoPortfolio } from "../../demo/fixtures";
 
-type Row = { ticker: string; quantity: string; avg: string; note: string };
+type Row = { key: number; ticker: string; quantity: string; avg: string; note: string };
 
-const toRow = (p: (typeof demoPortfolio.positions)[number]): Row => ({
+let nextKey = 100;
+const toRow = (p: (typeof demoPortfolio.positions)[number], i: number): Row => ({
+  key: i,
   ticker: p.ticker,
   quantity: String(p.quantity),
   avg: p.avg == null ? "" : String(p.avg),
   note: p.note,
 });
 
-function numError(v: string, required: boolean) {
-  if (!v.trim()) return required ? "必填" : null;
-  const n = Number(v);
-  return Number.isFinite(n) ? null : "不是有效数字";
-}
+const isBadNumber = (v: string) => v.trim() !== "" && !Number.isFinite(Number(v));
 
 export function PortfolioPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [rows, setRows] = useState<Row[]>(demoPortfolio.positions.map(toRow));
   const [cash, setCash] = useState(String(demoPortfolio.cash ?? ""));
+  const [version, setVersion] = useState(demoPortfolio.version);
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const update = (i: number, patch: Partial<Row>) => {
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const update = (key: number, patch: Partial<Row>) => {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
     setDirty(true);
+  };
+
+  const invalid = rows.some((r) => !r.ticker.trim() || !r.quantity.trim() || isBadNumber(r.quantity) || isBadNumber(r.avg)) || isBadNumber(cash);
+
+  const save = () => {
+    setSaving(true);
+    window.setTimeout(() => {
+      setSaving(false);
+      setDirty(false);
+      setVersion((v) => v + 1);
+      toast(`已保存为 v${version + 1}`);
+    }, 700);
   };
 
   return (
     <>
-      <Topbar
+      <PageHead
         title="持仓"
-        crumb="当前为手动持仓快照"
+        sub="当前为手动持仓快照 · 不记录交易，不计算市值或盈亏"
         actions={
           <>
-            <button className="btn btn-sm">
-              <Upload size={15} /> 导入 JSON
-            </button>
-            <button className="btn btn-sm">
-              <Download size={15} /> 导出 JSON
-            </button>
+            <Menu
+              trigger={({ toggle, ref, open }) => (
+                <Button ref={ref} size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+                  {demoPortfolio.name} · v{version} <ChevronDown size={14} />
+                </Button>
+              )}
+            >
+              {(close) => (
+                <>
+                  {[version, version - 1, version - 2].map((v) => (
+                    <button key={v} className="menu-item" role="menuitem" onClick={close} aria-current={v === version ? "page" : undefined}>
+                      v{v} <span className="t3">{v === version ? "最新" : "历史版本"}</span>
+                    </button>
+                  ))}
+                  <div className="menu-sep" />
+                  <button className="menu-item" role="menuitem" onClick={() => { close(); toast("请选择 JSON 文件（演示）"); }}>
+                    导入 JSON
+                  </button>
+                  <button className="menu-item" role="menuitem" onClick={() => { close(); toast("已开始下载（演示）"); }}>
+                    导出 JSON
+                  </button>
+                </>
+              )}
+            </Menu>
+            <Button variant="solid" size="sm" disabled={!dirty || invalid} loading={saving} onClick={save}>
+              {dirty ? `保存为 v${version + 1}` : "已保存"}
+            </Button>
           </>
         }
       />
-      <div className="page">
-        <div className="page-head">
-          <div>
-            <div className="row">
-              <h2>{demoPortfolio.name}</h2>
-              <span className="badge badge-blue">v{demoPortfolio.version}</span>
-              <span className="demo-tag">演示数据</span>
-            </div>
-            <p>
-              快照时间 {demoPortfolio.asOf} · 保存后生成新版本，已关联到历史运行的旧版本不会被改变。
-            </p>
+
+      <div className="stack-xl">
+        <div className="row" style={{ gap: 48, alignItems: "flex-start" }}>
+          <div style={{ width: 220 }}>
+            <Field label="现金" machineKey="cash" hint="留空表示未知，不会当作 0。" error={isBadNumber(cash) ? "不是有效数字" : undefined}>
+              <input
+                className="input num"
+                inputMode="decimal"
+                value={cash}
+                onChange={(e) => {
+                  setCash(e.target.value);
+                  setDirty(true);
+                }}
+                placeholder="未知"
+                aria-invalid={isBadNumber(cash)}
+              />
+            </Field>
           </div>
-          <div className="row">
-            <select className="select" style={{ width: 200 }} aria-label="选择快照">
-              <option>主账户 · v3（最新）</option>
-              <option>主账户 · v2</option>
-              <option>主账户 · v1</option>
-            </select>
-            <button className="btn btn-primary" disabled={!dirty}>
-              <Save size={15} /> 保存为 v{demoPortfolio.version + 1}
-            </button>
+          <div style={{ width: 140 }}>
+            <Field label="币种" machineKey="currency" hint="仅作标签。">
+              <input className="input" defaultValue={demoPortfolio.currency} onChange={() => setDirty(true)} />
+            </Field>
+          </div>
+          <div className="stack-sm small t3" style={{ paddingTop: 26 }}>
+            <span>快照时间 {demoPortfolio.asOf}</span>
+            <DemoMark />
           </div>
         </div>
 
-        <Banner kind="info">
-          这里编辑的是“当前持仓快照”，不是交易记录。不会根据买卖自动计算成本，也不会显示市值或实时盈亏。
-        </Banner>
+        <section className="stack">
+          <Notice kind="warn" title="可能重复：">
+            <span className="mono">SAMPLE.HK</span> 与 <span className="mono">0001.HK</span> 归一后或指向同一标的。系统不会自动合并成本。
+          </Notice>
 
-        <div className="grid-2" style={{ maxWidth: 640 }}>
-          <Field label="现金" machineKey="cash" hint="留空表示现金未知，不会被当作 0。">
-            <input
-              className="input num"
-              inputMode="decimal"
-              value={cash}
-              onChange={(e) => {
-                setCash(e.target.value);
-                setDirty(true);
-              }}
-              placeholder="未知"
-              aria-invalid={!!numError(cash, false)}
-            />
-          </Field>
-          <Field label="现金币种" machineKey="currency" hint="仅作标签；不同币种不会合并计算。">
-            <input className="input" defaultValue={demoPortfolio.currency} />
-          </Field>
-        </div>
-
-        <Banner kind="warn" title="发现重复代码：">
-          <span className="mono">SAMPLE.HK</span> 与 <span className="mono">0001.HK</span> 归一后可能指向同一标的（演示）。系统不会自动合并成本，请确认后手动处理。
-        </Banner>
-
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th className="sticky-col">代码</th>
-                <th className="num">数量</th>
-                <th className="num">平均每单位成本</th>
-                <th>币种说明</th>
-                <th>更新时间</th>
-                <th aria-label="操作" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => {
-                const qErr = numError(r.quantity, true);
-                const aErr = numError(r.avg, false);
-                return (
-                  <tr key={i}>
-                    <td className="sticky-col">
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>代码</th>
+                  <th className="num">数量</th>
+                  <th className="num">平均每单位成本</th>
+                  <th>说明</th>
+                  <th aria-label="操作" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.key} className="pf-row">
+                    <td style={{ paddingLeft: 0 }}>
                       <input
-                        className="input mono"
-                        style={{ width: 130 }}
+                        className="input input-bare mono"
+                        style={{ width: 130, fontWeight: 500 }}
                         value={r.ticker}
-                        onChange={(e) => update(i, { ticker: e.target.value })}
+                        placeholder="代码"
+                        onChange={(e) => update(r.key, { ticker: e.target.value })}
                         aria-label="代码"
+                        aria-invalid={!r.ticker.trim()}
                       />
                     </td>
                     <td className="num">
                       <input
-                        className="input num"
+                        className="input input-bare num"
                         style={{ width: 110, textAlign: "right" }}
                         value={r.quantity}
-                        onChange={(e) => update(i, { quantity: e.target.value })}
-                        aria-label="数量"
-                        aria-invalid={!!qErr}
-                        title={qErr ?? "负数表示空头"}
+                        placeholder="0"
+                        onChange={(e) => update(r.key, { quantity: e.target.value })}
+                        aria-label="数量（负数为空头）"
+                        aria-invalid={isBadNumber(r.quantity) || !r.quantity.trim()}
                       />
                     </td>
                     <td className="num">
                       <input
-                        className="input num"
+                        className="input input-bare num"
                         style={{ width: 130, textAlign: "right" }}
                         value={r.avg}
                         placeholder="未提供"
-                        onChange={(e) => update(i, { avg: e.target.value })}
+                        onChange={(e) => update(r.key, { avg: e.target.value })}
                         aria-label="平均成本"
-                        aria-invalid={!!aErr}
+                        aria-invalid={isBadNumber(r.avg)}
                       />
                     </td>
-                    <td className="muted">{r.note}</td>
-                    <td className="num faint">{demoPortfolio.asOf}</td>
+                    <td className="t2 small">{r.note}</td>
                     <td>
-                      <div className="row" style={{ flexWrap: "nowrap" }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => navigate("/analysis")}>
-                          <LineChart size={14} /> 分析这只股票
-                        </button>
-                        <button
-                          className="btn btn-ghost icon-btn"
-                          aria-label={`删除 ${r.ticker}`}
+                      <div className="row pf-actions" style={{ flexWrap: "nowrap", justifyContent: "flex-end" }}>
+                        <Button size="sm" variant="ghost" icon={<ArrowUpRight size={14} />} onClick={() => navigate("/analysis")}>
+                          分析
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`删除 ${r.ticker || "此行"}`}
+                          icon={<X size={15} />}
                           onClick={() => {
-                            setRows((rs) => rs.filter((_, j) => j !== i));
+                            setRows((rs) => rs.filter((x) => x.key !== r.key));
                             setDirty(true);
                           }}
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        />
                       </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div>
-          <button
-            className="btn btn-sm"
-            onClick={() => {
-              setRows((rs) => [...rs, { ticker: "", quantity: "", avg: "", note: "" }]);
-              setDirty(true);
-            }}
-          >
-            <Plus size={15} /> 编辑持仓 · 新增一行
-          </button>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Plus size={15} />}
+              onClick={() => {
+                setRows((rs) => [...rs, { key: nextKey++, ticker: "", quantity: "", avg: "", note: "" }]);
+                setDirty(true);
+              }}
+            >
+              添加一行
+            </Button>
+          </div>
+          <p className="small t3">数量为负表示空头。不同币种的持仓不会合并计算。保存会生成新版本，已关联到历史运行的版本保持不变。</p>
+        </section>
       </div>
     </>
   );

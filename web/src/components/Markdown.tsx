@@ -12,7 +12,7 @@ const schema = {
 /** Report text comes from model output and third-party news; render it inert. */
 export function Markdown({ text }: { text: string }) {
   return (
-    <div className="report">
+    <div className="prose">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeSanitize, schema]]}
@@ -23,7 +23,7 @@ export function Markdown({ text }: { text: string }) {
               {children}
             </a>
           ),
-          img: ({ alt }) => <span className="faint">[图片：{alt || "未命名"}]</span>,
+          img: ({ alt }) => <span className="t3">[图片：{alt || "未命名"}]</span>,
         }}
       >
         {text}
