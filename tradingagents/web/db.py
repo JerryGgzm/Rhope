@@ -6,6 +6,8 @@ It indexes; it does not replace the engine's checkpoints or memory log.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -87,11 +89,15 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 
 
 def init(path: Path | None = None) -> None:
+    path = path or db_path()
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
     finally:
         conn.close()
+    for suffix in ("", "-wal", "-shm"):
+        with contextlib.suppress(FileNotFoundError):
+            os.chmod(f"{path}{suffix}", 0o600)
 
 
 @contextmanager

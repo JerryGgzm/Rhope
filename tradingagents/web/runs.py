@@ -385,7 +385,7 @@ class RunManager:
         package_root = str(Path(tradingagents.__file__).resolve().parents[1])
         env["PYTHONPATH"] = os.pathsep.join(filter(None, [package_root, env.get("PYTHONPATH")]))
         env["TRADINGAGENTS_NO_UPDATE_CHECK"] = "1"
-        log = open(run_dir / "worker.log", "ab")   # noqa: SIM115 - owned by the child
+        log = os.fdopen(os.open(run_dir / "worker.log", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600), "ab")
         try:
             proc = subprocess.Popen(
                 [sys.executable, "-m", "tradingagents.web.worker", str(run_dir)],

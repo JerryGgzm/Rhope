@@ -3,6 +3,7 @@ import { useRef, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu } from "../components/Menu";
 import { Button } from "../components/ui";
+import { useHealth } from "../lib/api/hooks";
 import { useSlidingIndicator } from "../lib/motion";
 
 const NAV = [
@@ -13,12 +14,39 @@ const NAV = [
   { to: "/memory", label: "复盘" },
 ];
 
-export function Shell({ status, note }: { status: ReactNode; note?: ReactNode }) {
+// Pages still showing prototype data until their part of the API lands.
+const DEMO_SECTIONS = new Set(["/portfolio", "/backtests", "/memory"]);
+
+function Connection() {
+  const health = useHealth();
+  const tone = health.isSuccess ? (health.data.worker.busy ? "active" : "ok") : health.isError ? "danger" : "hollow";
+  const label = health.isSuccess
+    ? health.data.worker.busy
+      ? `分析进行中${health.data.worker.queued ? ` · 排队 ${health.data.worker.queued}` : ""}`
+      : "本地服务"
+    : health.isError
+      ? "未连接"
+      : "连接中";
+  const title = health.isSuccess
+    ? `TradingAgents ${health.data.version} · 存储 ${health.data.storage === "ok" ? "正常" : "不可用"}`
+    : health.isError
+      ? "无法连接本地服务：运行 python -m tradingagents.web"
+      : undefined;
+  return (
+    <span className="conn" title={title} role="status">
+      <span className="dot" data-tone={tone} aria-hidden />
+      <span className="conn-label">{label}</span>
+    </span>
+  );
+}
+
+export function Shell() {
   const location = useLocation();
   const navigate = useNavigate();
   const navRef = useRef<HTMLElement>(null);
   const rect = useSlidingIndicator(navRef, ".nav-link.active", [location.pathname]);
   const section = "/" + location.pathname.split("/")[1];
+  const health = useHealth();
 
   return (
     <div className="app">
@@ -38,7 +66,7 @@ export function Shell({ status, note }: { status: ReactNode; note?: ReactNode })
             )}
           </nav>
           <div className="header-end">
-            {status}
+            <Connection />
             <NavLink
               to="/settings"
               className={({ isActive }) => `btn btn-ghost btn-icon${isActive ? " is-active" : ""}`}
@@ -83,7 +111,17 @@ export function Shell({ status, note }: { status: ReactNode; note?: ReactNode })
           </div>
         </div>
       </header>
-      {note}
+      {health.isError && (
+        <div className="demo-note" role="alert">
+          无法连接本地服务。表单内容会保留；服务恢复后自动重连。启动方式：
+          <span className="mono"> python -m tradingagents.web</span>
+        </div>
+      )}
+      {DEMO_SECTIONS.has(section) && (
+        <div className="demo-note" role="note">
+          此页仍是视觉原型：数据为演示，操作尚未连接后端。
+        </div>
+      )}
       <main className="main" key={section}>
         <Outlet />
       </main>

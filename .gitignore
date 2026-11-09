@@ -225,3 +225,4 @@ reports/
 # Web workbench
 web/node_modules/
 tradingagents/web/static/
+!web/src/lib/
