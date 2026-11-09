@@ -41,9 +41,15 @@ dev = [
 bedrock = [
     "langchain-aws>=1.7.9",
 ]
+# The local web workbench: python -m tradingagents.web
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.scripts]
 tradingagents = "cli.main:app"
+tradingagents-web = "tradingagents.web.__main__:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "tradingagents.__version__"}
@@ -53,7 +59,7 @@ include = ["tradingagents*", "cli*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
-tradingagents = ["assets/*.svg"]
+tradingagents = ["assets/*.svg", "web/static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
